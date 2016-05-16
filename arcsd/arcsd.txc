@@ -1,0 +1,604 @@
+//============== arcsd.txc ==============//
+//
+//{###ディレクトリ圧縮Backup ARCSD
+//  mailto: topiyama(a)theia.ocn.ne.jp
+// 
+//##作成履歴
+// 01.00        2005/03/13     初版
+// 01.01        2009/02/20     [修正]LHAコマンドのバッファ操作ミスにより正常に動作しない場合があった
+//                             [追加]
+//
+//##ToDo:
+//＊レジストリ登録 (Directory に関連づけ)
+//  ・登録/解除
+//
+
+//{###ソース部分
+
+//##定義・宣言部
+#define MACRO_NAME		"ディレクトリ圧縮Backup"
+#define MACRO_VERSION	"1.01"
+#define MACRO_AUTHOR	"topiyama"
+
+#pragma TLL
+#include <windows.h>
+#include <windowsx.h>
+#pragma multidef+
+#include <commctrl.h>
+#pragma multidef.
+
+typedef int ("unlha32.dll" WINAPI *lpfnUnlha)(const HWND _hwnd, LPCSTR _szCmdLine, LPSTR _szOutput, const DWORD _dwSize);
+
+#if 1
+ #define 	DEBUG_INFORMATION
+#else
+ #define 	DEBUG_INFORMATION	information
+#endif
+
+
+//##設定用保存パラメータ
+permanent txstr		p_tsStorePath		= "C:\\";  // バックアップ保存先ディレクトリ （初期値代入）
+permanent int		p_OpenAfterBk		= 0;
+permanent int		p_BrowseAsVk		= 0;
+permanent int		p_RevOpenAsVk		= 0;
+permanent int		p_SameDirAsVk		= 0;
+permanent int		p_BrowseAsEditor	= 1;
+
+/////////////////////////////////////////////////////////////////////////////
+//##shlapi.txc から移植
+
+typedef LONG HRESULT;
+
+// IMalloc Interface (for Task allocator API)
+typedef struct IMalloc *LPMALLOC;
+struct IMallocVtbl {
+	DWORD dummy[2];
+	ULONG ("shell32.dll" __stdcall *Release)(LPMALLOC);
+	DWORD dummy2[2];
+	void ("shell32.dll" __stdcall *Free)(LPMALLOC,void*);
+	DWORD dummy3[3];
+} IMallocVtbl;
+struct IMalloc {
+	const struct IMallocVtbl *lpVtbl;
+};
+
+// ITEMIDLIST -- List if item IDs (combined with 0-terminator)
+typedef ITEMIDLIST,*LPITEMIDLIST;
+typedef const ITEMIDLIST *LPCITEMIDLIST;
+// for SHBrowseForFolder API
+typedef int (CALLBACK *BFFCALLBACK)(HWND hwnd,UINT uMsg,LPARAM lParam,LPARAM lpData);
+typedef struct {
+	HWND hwndOwner;
+	LPCITEMIDLIST pidlRoot;
+	LPSTR pszDisplayName;
+	LPCSTR lpszTitle;
+	UINT ulFlags;
+	BFFCALLBACK lpfn;
+	LPARAM lParam;
+	int iImage;
+} BROWSEINFO,*LPBROWSEINFO;
+// Browsing for directory
+#define BIF_RETURNONLYFSDIRS	0x0001
+// message from browser
+#define BFFM_INITIALIZED	1
+// messages to browser
+#define BFFM_SETSELECTION	(WM_USER + 102)
+
+extern "shell32.dll" {
+	HRESULT WINAPI SHGetMalloc(LPMALLOC*);
+	BOOL WINAPI SHGetPathFromIDList(LPCITEMIDLIST,LPSTR);
+	LPITEMIDLIST WINAPI SHBrowseForFolder(LPBROWSEINFO);
+}
+
+static void wndSetCenter(HWND hwnd)
+{
+	HWND hwndOwner = GetWindow(hwnd,GW_OWNER);
+	if (hwndOwner) {
+		mchar szClass[CCHWORD];
+		GetClassName(hwndOwner,szClass,CCHWORD);
+		if (!strcmp(szClass,"#32770")) {
+			// オーナーがダイアログなら何もしない
+			return;
+		}
+	}
+	RECT r,rWork;
+	GetWindowRect(hwnd,&r);
+	GetWorkRect(&rWork);
+	int x,y;
+	if (!hwndOwner) {
+		x = (rWork.right - rectCx(&r)) / 2;
+		y = (rWork.bottom - rectCy(&r)) / 2;
+	} else {
+		RECT rOwner;
+		GetWindowRect(hwndOwner,&rOwner);
+		int cx = rectCx(&r);
+		int cy = rectCy(&r);
+		x = rOwner.left + (rectCx(&rOwner) - cx) / 2;
+		y = rOwner.top + (rectCy(&rOwner) - cy) / 2;
+		if (x < 0) {
+			x = 0;
+		} else {
+			if (x + cx > rWork.right) x = rWork.right - cx;
+		}
+		if (y < 0) {
+			y = 0;
+		} else {
+			if (y + cy > rWork.bottom) y = rWork.bottom - cy;
+		}
+	}
+	SetWindowPos(hwnd,NULL,x,y,0,0,SWP_NOSIZE|SWP_NOZORDER);
+}
+
+static int CALLBACK SHBrowseProc(HWND hwnd,UINT uMsg,LPARAM lParam,LPARAM lpData)
+{
+	if (uMsg == BFFM_INITIALIZED) {
+		// デフォルトのパスを選択
+		SetWindowPos(hwnd, HWND_TOPMOST,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE);
+		SendMessage(hwnd,BFFM_SETSELECTION,TRUE,lpData);
+		SetForegroundWindow(hwnd);
+		//SetActiveWindow(hwnd);
+		//wndSetCenter(hwnd);
+	}
+	return 0;
+}
+
+BOOL mySHBrowseForFolder(HWND hwndOwner,mchar* szPath,mchar* szTitle)
+{
+	BOOL ret = FALSE;
+	LPMALLOC pMalloc;
+	if (SUCCEEDED(SHGetMalloc(&pMalloc))) {
+		LPITEMIDLIST pidl;
+		BROWSEINFO bi;
+		memset(&bi,0,sizeof(BROWSEINFO));
+		bi.hwndOwner = hwndOwner;
+#pragma warnfuncnotcall-
+		bi.lpfn = txpcodeRegisterCallback(SHBrowseProc,4);
+#pragma warnfuncnotcall.
+		bi.lParam = (LPARAM)szPath;
+		bi.lpszTitle = szTitle;
+		bi.ulFlags = BIF_RETURNONLYFSDIRS;
+		pidl = SHBrowseForFolder(&bi);
+		txpcodeUnregisterCallback(bi.lpfn);
+		if (pidl) {
+			ret = SHGetPathFromIDList(pidl,szPath);
+			(pMalloc->lpVtbl->Free)(pMalloc,pidl);
+		}
+		(pMalloc->lpVtbl->Release)(pMalloc);
+	}
+	return ret;
+}
+/////////////////////////////////////////////////////////////////////////////
+
+//##実働部隊
+
+//argv[]作成
+int makearg(mchar* src, mchar* argv[], int maxv)
+{
+	int		argc = 0;
+	//
+	while ((argc < maxv) && *src) {
+		//空白はとばす
+		while (*src && (*src == (mchar)' ')) {
+			*src = (mchar)0;
+			src++;
+		}
+		//quotに囲まれた文字列を取り出す
+		if (*src == (mchar)'\"') {
+			*src = (mchar)0;
+			src++;
+			argv[argc] = src;
+			argc++;
+			while (*src && (*src != (mchar)'\"')) {
+				src++;
+			}
+			if (*src == (mchar)'\"') *src++ = (mchar)0;
+		}
+		else {
+			argv[argc] = src;
+			argc++;
+			//空白文字が出るまで読み込む
+			while (*src != (mchar)' ' && *src) {
+				src++;
+			}
+		}
+	}
+	argv[argc] = NULL;
+	return (argc);
+}
+
+#if 0
+//コマンドパラメータから不要な部分を削除してmchar*化
+static mchar* ExtractCmdline(wchar* wszCmdline)
+{
+	mchar*	retval		= NULL;
+	mchar*	start_ptr	= NULL;
+	mchar*	end_ptr		= NULL;
+	mchar*	pCmdline	= (mchar*)zmalloc((int)CCHLINE);
+	wstrtostr(wszCmdline, -1, pCmdline, (int)CCHLINE);
+
+	DEBUG_INFORMATION("%d: %s", __LINE__, pCmdline);
+
+	start_ptr = stristr(pCmdline, "/f\m.txe");
+	if (start_ptr) {
+		start_ptr += sizeof("/f\m.txe");
+		end_ptr = stristr(pCmdline, "/wsw10");
+		if (end_ptr) {
+			while (isspace((int)*end_ptr--));
+			*end_ptr = (char)'\0';
+		}
+		int		alloclen = strlen(start_ptr);
+		retval = (mchar*)zmalloc(alloclen);
+		strcpy(retval, start_ptr);
+	}
+	free(pCmdline);
+	DEBUG_INFORMATION("%d: %s", __LINE__, retval);
+	return retval;
+}
+#endif
+
+//対象ディレクトリの取得（パラメータから分割取得）
+static BOOL splitTargetDirectory(HWND hwnd, mchar* szBuffer, mchar* szParent, mchar* szDirName)
+{
+	//入力データの判別
+	if (strlen(szBuffer) == 0) {
+		//何もしないで終了
+		MessageBox(hwnd, "パラメータを指定してください", "WZ", MB_ICONSTOP|MB_OK);
+		return FALSE;
+	}
+	else if (strlen(szBuffer) > MAX_PATH) {
+		//パスが長すぎる
+		MessageBox(hwnd, "パスが長すぎます", "WZ", MB_ICONSTOP|MB_OK);
+		return FALSE;
+	}
+	else if (pathIsDirectory(szBuffer)) {
+		//ディレクトリ指定なのでそのまま
+		strcpylen(szParent, szBuffer, MAX_PATH - 1 );
+	}
+	else if (fileIsExist(szBuffer)) {
+		//ファイル指定のときは、直上のディレクトリを参照する
+		mchar*	pend	= pathGetFileName(szBuffer);
+		mchar*	pbuf	= &szParent[0];
+		mchar*	pstart	= szBuffer;
+		while (pstart < pend) {
+			*pbuf++ = *pstart++;
+		}
+	}
+	else {
+		//何もしないで終了
+		mchar*	pLogBuf	= (mchar*)zmalloc((int)CCHLINE);
+		sprintf(pLogBuf, "パラメータが良く分からないので終わります\n\n%s", szBuffer);
+		
+		MessageBox(hwnd, pLogBuf, "WZ", MB_ICONSTOP|MB_OK);
+		free(pLogBuf);
+		return FALSE;
+	}
+	//
+	//
+	//セパレータを消す（一旦つけてから消す）
+	if (szParent[0] == (char)'\"') {
+		szParent[0] = (char)' ';
+	}
+	pathSetDir(szParent);	
+	szParent[strlen(szParent) - 1] = (char)'\0';
+	mchar*	p_start	= &szParent[0];
+	mchar*	p_end	= &szParent[strlen(szParent) - 1];
+	while (p_start < p_end) {
+		if (*p_end == (char)'\\') break;
+		p_end--;
+	}
+	//対象ディレクトリ名の抽出
+	p_end++;
+	strcpy(szDirName, p_end);
+	
+	//親ディレクトリのパスの抽出
+	*p_end = (char)'\0';
+	DEBUG_INFORMATION("%d: \nszBuffer: \"%s\"\nszParent: \"%s\"\nszDirName: \"%s\" ", __LINE__, szBuffer, szParent, szDirName);
+	return TRUE;
+}
+
+//格納ディレクトリの取得
+static mchar* GetStorePath(int year, int month, int day)
+{
+	int		time1year	= (year  == 0) ? timeGetYear() : year;
+	int		time1month	= (month == 0) ? timeGetMonth(): month;
+	int		time1day	= (day   == 0) ? timeGetDay()  : day;
+	mchar*	pStorePath = (mchar*)zmalloc(MAX_PATH);
+	sprintf(pStorePath, "%s\\%04d%02d%02d", p_tsStorePath, time1year, time1month, time1day);
+	return pStorePath;
+}
+
+//格納ディレクトリを開く
+static void _openStorePath(mchar* szPath)
+{
+	shellExecute(szPath, "open");	
+}
+
+void OpenStorePath(TX* text)
+{
+	mchar*	pStorePath = GetStorePath(0,0,0);	//取得
+	_openStorePath(pStorePath);	
+	free(pStorePath);
+}
+
+//実行関数
+BOOL BackupDirectory(HWND hwnd, mchar* szPathName)
+{
+	int		errdlg		= IDCANCEL;
+	int		time1year	= timeGetYear();
+	int		time1month	= timeGetMonth();
+	int		time1day	= timeGetDay();
+	int		time1hour	= timeGetHour();
+	int		time1minute	= timeGetMinute();
+	int		time1second	= timeGetSecond();
+	mchar*	pCommand	= NULL;
+	
+	/*******************************
+	 対象ディレクトリの抽出
+	 *******************************/
+	mchar*	pDirName = (mchar*)zmalloc(MAX_PATH);	//対象のディレクトリ名
+	mchar*	pParent = (mchar*)zmalloc(MAX_PATH);	//対象の親ディレクトリのパス
+	mchar*	pStorePath = NULL;
+	BOOL rcbool = splitTargetDirectory(hwnd, szPathName, pParent, pDirName);
+
+	DEBUG_INFORMATION("%d\nParent: %s\nDirName: %s", __LINE__, pParent, pDirName);
+
+	if (rcbool == TRUE) {
+		
+#if 1
+		if (p_SameDirAsVk && (0 > (short)GetKeyState((int)VK_CONTROL/*VK_MENU*/)) ) {
+			/* 対象ディレクトリの親に格納する */
+			pStorePath = zmalloc(strlen(pParent) + 1);
+			strcpy(pStorePath, pParent);
+			pathFormDir(pStorePath);
+		}
+		else 
+#endif
+		{
+			/*******************************
+			 格納ディレクトリの作成
+			 *******************************/
+			pStorePath = GetStorePath(time1year, time1month, time1day);	//取得
+			CreateDirectory(pStorePath, NULL);		//作成
+		}
+		if (pathIsDirectory(pStorePath) == FALSE) {
+			mchar* pLogBuf = (mchar*)zmalloc((int)CCHLINE);
+			sprintf(pLogBuf, "ディレクトリが作成できません\n\n%s", pStorePath);
+			MessageBox(hwnd, pLogBuf, "WZ", MB_ICONSTOP|MB_OK);
+			free(pLogBuf);
+		}
+		else {
+			/*******************************
+			 コマンドパラメータ作成
+			 *******************************/
+			int	bufsize = 3 /* "a \"" */ + strlen(pStorePath) + 2 /* "\\" */
+					 	+ strlen(pDirName) + 23 /* "_yyyymmdd_hhmmss.lzh\"" */
+					 	+ 9 /* " -x1r2a2 " */ + strlen(pParent)
+					 	+ strlen(pDirName) + 2;/* 終端 */
+			pCommand = (mchar*)zmalloc(bufsize * sizeof(mchar));
+			sprintf(pCommand,
+						"a \"%s\\%s_%04d%02d%02d_%02d%02d%02d.lzh\" -x1r2a2 \"%s\" \"%s\"",
+						pStorePath, pDirName,
+						time1year, time1month, time1day, time1hour, time1minute, time1second,
+						pParent, pDirName
+					);
+			mchar* pLogBuf = (mchar*)zmalloc((int)CCHLINE * 10);
+			sprintf(pLogBuf,
+					"指定のディレクトリを圧縮します\n\nTarget\t:\"%s%s\"\nDst File\t:\"%s\\%s_%04d%02d%02d_%02d%02d%02d.lzh\"",
+					pParent, pDirName,
+					pStorePath, pDirName, time1year, time1month, time1day, time1hour, time1minute, time1second
+					);
+			/*******************************
+			 実行の確認
+			 *******************************/
+			errdlg = MessageBox(hwnd, pLogBuf,"ディレクトリを圧縮する", MB_OKCANCEL|MB_ICONQUESTION|MB_TOPMOST);
+			free(pLogBuf);
+		}
+	}
+	free(pDirName);
+	free(pParent);
+	if (errdlg == IDOK) {
+		/*******************************
+		 アーカイバ呼び出し
+		 *******************************/
+		
+		lpfnUnlha	ulFunc;
+		HMODULE		hModule = LoadLibrary("UNLHA32.DLL");
+		int			ctrlkeyflag;
+		if (hModule) {
+			ulFunc = (lpfnUnlha)GetProcAddress(hModule, "Unlha");
+			
+			if (ulFunc) {
+				DEBUG_INFORMATION("%d: %s", __LINE__, pCommand);
+				int		err = (ulFunc)(hwnd, pCommand, NULL, 0);
+				if (hwnd)
+					SetForegroundWindow(hwnd);
+				if (err) {
+					mchar* pLogBuf = (mchar*)zmalloc((int)CCHLINE);
+					sprintf(pLogBuf, "エラー 0x%08X です", err);
+					MessageBox(hwnd, pLogBuf, "WZ", MB_ICONSTOP|MB_OK);
+					free(pLogBuf);
+				}
+				if (!err) {
+					ctrlkeyflag = !(p_OpenAfterBk ^ (0 > (short)GetKeyState((int)VK_MENU/*VK_CONTROL*/)));
+					if (p_RevOpenAsVk ^ ctrlkeyflag) {
+					/*
+					p_OpenAfterBk == 1
+					p_RevOpenAsVk == 0
+					keystate = 0
+					
+					p_OpenAfterBk == 0
+					p_RevOpenAsVk == 1
+					keystate = 1
+					*/
+						//バックアップ後に保存先ディレクトリを開く
+						_openStorePath(pStorePath);
+					}
+				}
+			}
+			else {
+				mchar* pLogBuf = (mchar*)zmalloc((int)CCHLINE);
+				sprintf(pLogBuf, "関数 Unlha()が見つかりません。");
+				MessageBox(hwnd, pLogBuf, "WZ", MB_ICONSTOP|MB_OK);
+				free(pLogBuf);
+			}
+			FreeLibrary(hModule);
+		}
+		else {
+				mchar* pLogBuf = (mchar*)zmalloc((int)CCHLINE);
+				sprintf(pLogBuf, "UNLHA32.DLL が見つかりません。");
+				MessageBox(hwnd, pLogBuf, "WZ", MB_ICONSTOP|MB_OK);
+				free(pLogBuf);
+		}
+	}
+	if (pStorePath) free(pStorePath);
+	if (pCommand) free(pCommand);
+	
+	return TRUE;
+}
+
+//##メイン関数
+void main(TX* text)
+{
+	HWND	hwnd		= text->hwndbase;
+	//HWND	hwnd		= NULL;
+	mchar*	pPathName	= (mchar*)zmalloc(MAX_PATH);
+	
+	if (text->szfilename) {
+		//現在のファイル名を取得して、パス名を取得する
+		strcpy(pPathName, text->szfilename);
+		mchar*	pFileName = pathGetFileName(pPathName);
+		if (pFileName) {
+			*pFileName = (mchar)0; /* ファイル名部分の先頭を0にすることでパス名で終端する */
+		}
+	}
+	else {
+		//代替ディレクトリを取得する ？
+	}
+	
+	DEBUG_INFORMATION("%d: %s", __LINE__, pPathName);
+	
+	//NULLもしくは長さ０なら実行パスから
+	
+	BOOL	rcbool = TRUE;
+	
+	if (p_BrowseAsEditor) {
+		rcbool = mySHBrowseForFolder(hwnd, pPathName, "対象ディレクトリを指定");
+	}
+	
+	DEBUG_INFORMATION("%d: hwnd = 0x%08x path = %s", __LINE__, hwnd, pPathName);
+	
+	if (rcbool == TRUE) {
+		rcbool = BackupDirectory(hwnd, pPathName);
+	}
+	free(pPathName);
+}
+
+// 「/f\m.txe」で実行された時のメイン関数
+HWND TxeMain(wchar* wszCmdline)
+{
+	HWND	hwnd		= NULL;
+	HWND	hwndfg		= GetForegroundWindow();
+	//HWND	hwndfg		= GetDesktopWindow();
+	//  ダイアログに hwnd を渡すと、親と見なされるので、
+	//  終了時に、hwnd をフォアグラウンドに持ってこようとする。
+	//  親ウィンドウからモーダルで開くようにするか、
+	//  独立させて、topmost にするか？
+	//  yesno ダイアログ自体は topmost化されているので、
+	//  SHBrowseForFolder()ダイアログへの topmost操作を行う。
+	//コマンドパラメータから余計な文字列を外す
+	//戻り値は free()すること
+	#define MAXARGC  32
+	mchar*	argv[MAXARGC+1];
+	int		argc = 0;
+	BOOL	fBrowse = FALSE;
+	mchar*	pPathName  = NULL;
+	mchar*	pCmdline	= (mchar*)zmalloc((int)CCHLINE);
+	
+	//mchar化する
+	wstrtostr(wszCmdline, -1, pCmdline, (int)CCHLINE);
+	
+	//コマンドラインパーサ
+	argc = makearg(pCmdline, argv, MAXARGC);
+	
+	DEBUG_INFORMATION("argc = %d\nargv[0] = %s\nargv[1] = %s\nargv[2] = %s\nargv[3] = %s\nargv[4] = %s", argc, argv[0], argv[1], argv[2], argv[3], argv[4]);
+	
+	int		i;
+	for (i = 1; i < argc; i++) {
+		// /fマクロ名 の後、直後にパスを指定する
+		if (stricmp("/f\m.txe", argv[i - 1]) == 0) {
+			pPathName = argv[i];
+		}
+		if (stricmp("-b", argv[i - 1]) == 0) {
+			fBrowse = TRUE;
+		}
+	}
+	//SHIFTキーを押しているときに 指定操作を行うかどうか
+	if (p_BrowseAsVk && (0 > (short)GetKeyState((int)VK_SHIFT)) ) {
+		fBrowse = TRUE;
+	}
+	if (0 == strlen(pPathName)) {
+		pPathName = pCmdline;
+		fBrowse = TRUE;
+	}
+	
+	BOOL	rcbool = TRUE;
+	
+	if (fBrowse) {
+		//NULLもしくは長さ０なら実行パスから
+		rcbool = mySHBrowseForFolder(hwndfg, pPathName, "対象ディレクトリを指定");
+	}
+	DEBUG_INFORMATION("%d: hwnd = 0x%08x path = %s", __LINE__, hwnd, pPathName);
+	
+	if (rcbool && strlen(pPathName)) {
+		//実行
+		/*rcbool = BackupDirectory(NULL, pPathName);*/
+		rcbool = BackupDirectory(hwnd, pPathName);
+	}
+	
+	free(pCmdline);
+	
+	return hwndfg;
+}
+
+//##保存変数設定用
+void config(TX* text)
+{
+	HDIALOG hd = dialog("\m 設定");
+	{
+		dialogTxstr(hd, "保存先ディレクトリ:",15, p_tsStorePath, 20);
+		dialogHeadline(hd, "",45);
+		dialogCheck(hd, "バックアップ後に保存先ディレクトリを開く", &p_OpenAfterBk);
+		dialogCheck(hd, "WZ EDITORから実行時は、強制的にフォルダ指定を行う", &p_BrowseAsEditor);
+		dialogCheck(hd, "SHIFTキー押下げ時は、強制的にフォルダ指定を行う", &p_BrowseAsVk);
+		dialogCheck(hd, "CTRL キー押下げ時は、対象ディレクトリと同じ場所に保存する", &p_SameDirAsVk);
+		dialogCheck(hd, "ALT  キー押下げ時は、保存先ディレクトリを開く動作を反転させる", &p_RevOpenAsVk);
+	}
+	if (dialogOpen(hd)) {
+		__prmSave();
+	}
+}
+
+//##exmenu対応
+void __exmenuAdd(TX* text, HMENU hmenu)
+{
+	menuTx(hmenu, "対象を指定してBackup(&A)...", "\m.main");
+	menuTx(hmenu, "保存先を開く(&O)...", "\m.OpenStorePath");
+	menuSepa(hmenu);
+	menuTx(hmenu, "設定(&C)...", "\m.config");
+}
+
+//##プラグインサポート関数
+
+//プロパティ設定関数
+void __pluginGetProperty(mchar* prop, txstr res)
+{
+	if (!stricmp(prop, "name")) res = MACRO_NAME;
+	if (!stricmp(prop, "version")) res = MACRO_VERSION;
+	if (!stricmp(prop, "author")) res = MACRO_AUTHOR;
+}
+
+//設定コマンド対応
+void __pluginConfig(TX* text)
+{
+	config(text);
+}

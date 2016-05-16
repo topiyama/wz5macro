@@ -1,0 +1,1211 @@
+//============== SSPLUS.TXC ==============//
+//
+//{###Shift選択機能拡張 SS-Plus
+//
+//	Copyright(c) 1999-2009  T-Mizoguchi (topiyama) <topiyama(a)theia.ocn.ne.jp>
+//
+//	はじめに SSPLUS.TML をお読み下さい。
+//	
+//	
+//_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+//	
+//##作成履歴
+//
+//# ver 0.37    2009/01/17(Sat)
+//								VillageCenter解散・Webサイト停止に伴い、一次配布場所を変更
+//								機能に変更はありません
+//# ver 0.36    2001/04/14(Sat)
+//								ずっと前からリリースしてありましたが、VCのサーバにおきます。
+//								ヘルプの出し方を変えただけです。
+//								0.35ともあわせて、本体機能は変わりないと思います。
+//								でも出来ればこれをお使いください。
+//# ver 0.35    2000/07/16(Sun)
+//								＋PWZでも「ステータスバーの選択表示域に選択モードを表示する」機能をつけた。
+//								　但し、悲惨です。なんとかしたいと思いましたが駄目でした。
+//								＊WZ4.00D/PWZ2.06A環境で確認と。バグ修正がいくつか（実ははるか前に作ってたんですが…）
+//								
+//# ver 0.34    2000/04/23(Sun)
+//								「貼り付けて選択」「引用符付きで貼り付け」の後 UNDOで選択範囲ゼロのくせに選択解除されないバグを力技でFIX
+//								・WZ 4.00D 評価版で プラグインマクロ設定I/Fヘルプを "/fwzHelp -f" で開く
+//								＋UNDO/REDO の直前にShift選択を解除するようにした。
+//								
+//# ver 0.33    2000/03/05(Sun)
+//								ドキュメントの若干の変更と、ヘルプでTMLファイル表示(WZ4)
+//								＊もし利用できるのであれば（すでにオリジナル記載されている部分を除き）ご自由に流用してくださって結構です。
+//								＊詳しくは ssplus.tml を参照ください。
+//								
+//# ver 0.32    2000/02/13(Sun)
+//								祝・個人ＷｅｂＳｉｔｅ公開 ＆ WZ4.00C VerUp
+//								以降マクロの１次配布先はここになります。よしなに。
+//								＋WZ4.00C / PWZ2.06Aのプラグインマクロインタフェイス正式対応
+//								＋設定ダイアログでヘルプチップ対応、さらに permanent変数の保存形式を修正
+//								＋開始方向感応選択に改めて正式対応。WZ本体のせいだけではありません。申し訳ない…
+//								
+//# ver 0.31    2000/01/18(Tue)
+//								間違えて少し前のものをアップしてしまっていたので、再登録
+//								（と言い訳。実は会社で古いものを使っていて気が付かなかった。ＤＬしてみてあらびっくり）
+//								＋Shift選択終了のカーソル移動で、選択始点／終点から更に移動していたのを修正
+//								
+//# ver 0.30    2000/01/10(Mon)
+//								Shift箱形選択をキー定義可能にした。
+//								定義によっては、Shiftを押さなくてもShift箱形選択出来てしまうのですが、便宜上この名前を使い続けます。
+//								・Shift+Alt+上下左右以外のキーをShift箱形選択に定義可能にした。
+//								＋上記に伴い設定ダイアログの改造。
+//								＋Shift+Alt+カーソルのキー定義をマクロで行わない、自前で上下／左右移動の廃止。
+//								＋若干数のバグ修正（p_nrmselectextend = TRUE, p_nojumpclipall = FALSE 時とか、 text->fClipWz（これはＷＺのバグ）とか
+//								＊開始方向感応選択(CLIP_WZ)に正式非対応(笑)
+//								＊マウス選択に対してもやりたいが、よく分からないので見送った。
+//								＊ver4.00B以前は未対応とする（動作確認が出来ない為）。ver4.00Cα版の発表により以降はこちらへの対応を目標とする。
+//								
+//# ver 0.22    1999/11/13(Sat)
+//								プラグインマクロ・キャンペーン対応のはずが、プロパティ表示に間抜けなミス。
+//								＋関数 __pluginGetProperty() の修正。
+//								
+//# ver 0.21    1999/11/10(Wed)
+//								プラグインマクロ・キャンペーン対応の為の VerUp
+//								＋4.00Bで行末をShift箱形選択の始点にしてすぐに右フリーカーソル移動したときに選択が外れてしまうのを修正
+//								＋一応、PWZでも動くようにした（除ステータスバー表示。用途は少ない）
+//								＋バイナリモードでは何もしないようにした。
+//								
+//# ver 0.2     1999/06/18(Fri)
+//								バグ取りのついでに改造。
+//								・全選択時のカーソル移動でファイル先頭／末尾に移動しない
+//								・ステータスバーの選択表示域に選択モードを表示する
+//								＋Shift文字単位選択→通常文字選択で「選択解除」になってしまうバグを修正
+//								＋Shift箱形選択をカーソル移動で解除時、先頭／末尾移動を、設定に従わせるようにした
+//								＋方向感応選択のトグル選択解除が出来ていなかったのを修正
+//								
+//# ver 0.1     1999/03/02(Tue)
+//								初版。Ｌｉｂ２に公開
+//								・Shift選択範囲長ゼロの時は選択解除
+//								・Shift+Altで箱形選択
+//								・キー定義を自前 (txKeySetWzcmd)で行う
+//								・Shift選択開始時、通常選択状態ならその選択始点を引き継ぐ
+//								・箱形選択時のコピーで選択範囲が崩れる不具合を防ぐ
+//								・他マクロの動作時、箱形選択での方向移動がおかしくなるときのチェック
+//
+//_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/
+
+//{###ソース部分
+
+//##ソースレベル設定
+//↓これを有効にしますと、選択解除のカーソル上下が 選択始点／終点の上下になります（MS-Word仕様）
+#define		_SSP_CURMVSELEND_EXT
+//↓これを有効にしますと、方向キー範囲選択を Windows以外にしたときの選択解除のカーソル移動での選択始点移動が選択開始点になります。
+#define		_SSP_CURMVSELEND_SVZ
+
+//##定義
+
+#define		__MACRONAME__		"Shift選択機能拡張"	//マクロ名称
+#define		__AUTHORNAME__		"T-Mizoguchi"		//作者
+#define		__MACROVERSION__	"0.37"				//バージョン
+
+#include "_idmcmd.h"
+#include "windows.h"
+
+//#ステータスバー選択モード表示用文字列
+//但し、表示出来る文字数は、全角で２、半角で５程度です
+#define		SSC_SHIFT		"SH選"		//Shift選択
+#define		SSC_SHBOX		"SH箱"		//Shift箱形選択
+//マウスでの選択をフック…タイミングが分かりませんでした
+//#define		SSC_SHWORD		"SH単"		//Shift単語選択		//MouseL2
+//#define		SSC_SHLINE		"SH行"		//Shift表示行選択	//マウスで行ドラッグ
+//#define		SSC_SHPARA		"SH行"		//Shift論理行選択	//MouseL3
+#define		SSC_CHAR		"文字"		//CLIP_CHAR
+#define		SSC_LINE		"表示"		//CLIP_LINE
+#define		SSC_PARA		"論理"		//CLIP_PARA
+#define		SSC_BOX			"箱形"		//CLIP_BOX
+#define		SSC_WORD		"単語"		//CLIP_WORD
+#define		SSC_SENTENCE	"文単"		//CLIP_SENTENCE
+#define		SSC_ALL			"ALL "		//CLIP_ALL
+#define		SSC_VZ			"VZ選"		//CLIP_VZ
+#define		SSC_WZ			"WZ選"		//CLIP_WZ
+#define		SSC_NONE		""			//CLIP_NONE
+//
+
+/* N.Yamamotoさん作 safefile.txcより 拝借しました */
+// 対マクロ設定ダイアログヘルプ
+mchar* _szHelpmeFilename = "\m";
+#define helpme(hd,anchor) dialogControlHelpEx((hd),_szHelpmeFilename,(anchor))
+// 対permanent変数保存
+int __prmSave(void) {return 1;}
+int SaveCfg(void);
+
+//#設定用パーマネント変数
+permanent BOOL	p_shiftselbox 		= TRUE  ;	//"Shift+Altのカーソル移動で 箱形選択を行う"
+permanent BOOL	p_lenzeroquitsel	= TRUE  ;	//"Shift選択時、範囲長ゼロの時は選択を解除する"
+permanent BOOL	p_selmodecontinue	= FALSE ;	//"Shift選択開始前、通常選択状態ならその選択始点を引継ぐ"
+permanent BOOL	p_nrmselectextend	= FALSE ;	//"通常選択開始前、Shift選択始点引継ぎと選択の順次切り替えの拡張"
+permanent BOOL	p_copyboxmode		= TRUE  ;	//"箱形選択時のコピーで表示が崩れるのを防ぐ"
+//廃止しました。cfgファイルからこれら変数を削除しても構いません。
+//permanent BOOL	p_sacursordefno		= FALSE ;	//"Shift+Altのカーソルのキー定義をマクロフックで行わない"
+//permanent BOOL	p_moveselfv		 	= FALSE ;	//自前で上下移動（ただしスクロール加速不可）
+//permanent BOOL	p_moveselfh			= FALSE ;	//自前で左右移動
+//以上、ver0.1	
+permanent BOOL	p_nojumpclipall		= FALSE ;	//"全選択時のカーソル移動でファイル先頭／末尾に移動しない"
+permanent BOOL	p_dispextmode		= FALSE ;	//"ステータスバーの選択表示域に選択モードを表示する"
+//以上、ver0.2	
+permanent BOOL	p_setselboxkey		= FALSE ;	//"Shift+Alt+カーソル以外のキーを割り当てる"
+permanent txstr	p_strkeySBleft		= "+{Home}";	//"Shift箱形選択の←"
+permanent txstr	p_strkeySBright		= "+{End}";	//"Shift箱形選択の→"
+permanent txstr	p_strkeySBup		= "+{PageUp}";		//"Shift箱形選択の↑"
+permanent txstr	p_strkeySBdown		= "+{PageDown}";	//"Shift箱形選択の↓"
+//以上、ver0.3
+//
+//#テキスト変数
+textvar BOOL	fMySelctbox;			//このマクロが行う自前の箱形選択か？（通常箱形選択と区別するためのフラグ）
+textvar WORD	fBakVkShift;			//Shift押下状態の一時保存用
+//textvar BYTE	fMymodeFreeCurSel;		//箱形選択でフリーカーソルモード変更の現在値保存 //現状不可能
+textvar BYTE	fShiftSelBoxOnExtern;	// ShiftSelBoxOn/Off 関数で操作。外部からShift箱形選択(キー定義無)のon/offを制御
+//↑^4）text->fClipMouse=TRUE で文字単位の選択と同様にShift選択に出来るようになれば…
+//
+//#スタティック変数
+static int _idm_SelBoxLeft;				//Shift箱形選択を割り当てる IDMイベント値
+static int _idm_SelBoxRight;
+static int _idm_SelBoxUp;
+static int _idm_SelBoxDown;
+
+
+//##"プラグインマクロ"・インタフェイス
+void __pluginGetProperty(mchar* prop,txstr res)
+{
+	if (!stricmp(prop,"name")) 		res = __MACRONAME__;
+	if (!stricmp(prop,"author")) 	res = __AUTHORNAME__;
+	if (!stricmp(prop,"version")) 	res = __MACROVERSION__;
+	return NULL;
+}
+
+//ヘルプボタンで呼び出されるマクロ
+void __pluginHelp (TX *text)
+{
+	//ヘルプボタンで呼び出されるマクロ
+	int ret;
+	ret = wquestionNoYes(L"このマクロは、\nShift+Alt+カーソル移動で箱形選択の実現、\n選択範囲の長さがゼロの時は選択が解除される機能の追加、\nその他、選択機能を追加・修正するものです。\n\n対応：\tWZ EDITOR 4.00D／PWZ EDITOR 2.06A\n\tWindows準拠のキー定義\n\nオンラインヘルプを表示しますか？");
+	if (ret != IDYES) {
+		return;
+	}
+	
+	//	information("このマクロは、\nShift+Alt+カーソル移動で箱形選択の実現、\n選択範囲の長さがゼロの時は選択が解除される機能の追加、\nその他、選択機能を追加・修正するものです。\n\n対応：\tWZ EDITOR 4.00C／PWZ EDITOR 2.06A\n\tWindows準拠のキー定義");
+	// #else
+	//	TXCOPTION* copt;
+	//	txcLoadConfig(copt);	//駄目？
+	//	mchar *ptrmacro = (mchar *)copt->szpathMacro;
+	TX		*text2;
+	mchar	fname[CCHPATHNAME];
+	mchar	szmacropath[CCHPATHNAME];
+	mchar	*ptrmacro = szmacropath;
+	mchar	szpath[CCHPATHNAME];
+	mchar	*ptrpath = szpath;
+	mchar	szfilename[CCHPATHNAME];
+	BOOL	feos = FALSE;
+	
+	//ここのルーチンは、T.Shimadaさんの LzhGrep を参照しました。
+	pathFullConfig(fname,"wzcfg:\\txc.cfg");
+	text2 = textopen(fname);
+	if(!txSearchEx(text2,"macro:", SEARCH_PARATOP|SEARCH_SELECT)) return;
+	while(txReadChar(text2)!=':');
+	txRight(text2);
+	txGetParaRearEx(text2, ptrmacro, 128);
+	textclose(text2);
+	
+	//設定値のマクロパからパスをひとつずつ切り出す。
+	while (1) {
+		if (*ptrmacro == ';' || *ptrmacro == '\0') {
+			*ptrpath = '\0';
+			ptrpath = szpath;
+			pathSetDir(ptrpath);
+			strcat(ptrpath, "\m.tml");
+			pathFullConfig(szfilename, ptrpath);
+			if (fileIsExist(szfilename)) {
+				wzexec("/v \"" + szfilename + "\" /h");
+				return;
+			} else {
+				ptrpath = szpath;
+			}
+		} else {
+			*ptrpath = *ptrmacro;
+			ptrpath++;
+		}
+		if (*ptrmacro == '\0') break;
+		ptrmacro++;
+	};
+	attention("現在設定されているマクロパス\n\n    %s\n\nを検索しましたが、\nヘルプファイル\"ssplus.tml\"は見つかりませんでした。", szmacropath);
+	return;
+}
+
+//##設定ダイアログ
+
+//ダイアログ
+//設定ボタンで呼び出されるマクロ
+void __pluginConfig(TX *text)
+{
+	text::fMySelctbox = FALSE;
+	text::fBakVkShift = 0;
+	txSelectQuit(text);
+	
+	HDIALOG _hd = dialog(__MACRONAME__ + " SS-Plus  ver." + __MACROVERSION__);
+	{
+		HDIALOG hd = dialog("箱形");
+		helpme(hd, 8);
+		dialogCheck(hd, "Shift+Altのカーソル移動で 箱形選択を行う(&B)", &p_shiftselbox);
+		helpme(hd, 14);
+		dialogCheck(hd, "箱形選択時のコピーで表示が崩れるのを防ぐ(&D)", &p_copyboxmode);
+#if !WINDOWSCE
+		dialogHeadline(hd, "",60);
+#endif
+		helpme(hd, 9);
+		dialogCheck(hd, "Shift+Alt以外のキーを割り当てる(&S)", &p_setselboxkey);
+		//dialogIndent(hd, 3);
+		//dialogCaption(hd, "（※上下スクロール加速が出来なくなります）");
+		//dialogIndent(hd, -3);
+		dialogSetH(hd);
+		helpme(hd, 21);
+		dialogTxstr(hd, "上[↑] (&U)", 10, p_strkeySBup,    16);
+		dialogSetV(hd);
+		helpme(hd, 21);
+		dialogTxstr(hd, "右[→] (&R)", 10, p_strkeySBright, 16);
+		dialogLF(hd);
+		dialogSetH(hd);
+		helpme(hd, 21);
+		dialogTxstr(hd, "左[←] (&L)", 10, p_strkeySBleft,  16);
+		helpme(hd, 21);
+		dialogTxstr(hd, "下[↓] (&D)", 10, p_strkeySBdown,  16);
+		dialogAddPage(_hd, hd);
+	}
+	{
+		HDIALOG hd = dialog("機能");
+		
+		helpme(hd, 11);
+		dialogCheck(hd, "Shift選択時、範囲長ゼロの時は選択を解除する(&Z)", &p_lenzeroquitsel);
+		helpme(hd, 12);
+		dialogCheck(hd, "Shift選択開始時、通常選択ならその選択始点を引継ぐ(&I)", &p_selmodecontinue);
+		helpme(hd, 13);
+		dialogCheck(hd, "通常選択モード・選択の順次切り替えの拡張(&N)", &p_nrmselectextend);
+		helpme(hd, 15);
+		dialogCheck(hd, "全選択時のカーソル移動で先頭／末尾に移動しない(&A)", &p_nojumpclipall);
+		helpme(hd, 16);
+		dialogCheck(hd, "ステータスバーの選択表示域に選択モードを表示する(&S)", &p_dispextmode);
+		dialogAddPage(_hd, hd);
+	}
+//	これらは廃止しました
+//	{
+//		HDIALOG hd = dialog("オプション");
+//		dialogCaption(hd, "以下は必要ない限り、特に設定する必要はありません");
+//		dialogHeadline(hd, "",60);
+//		dialogCheck(hd, "上下のカーソル移動を自前で行う(&V)", &p_moveselfv);
+//		dialogCheck(hd, "左右のカーソル移動を自前で行う(&H)", &p_moveselfh);
+//		dialogCheck(hd, "Shift+Alt選択のキー定義をマクロ機能で行わない(&S)", &p_sacursordefno);
+//		dialogAddPage(_hd, hd);
+//	}
+	{
+		HDIALOG hd = dialog("About");
+		dialogCaption(hd, "SSPLUS.TXC  Version " + __MACROVERSION__ + "  for WZ 4.00D / PWZ 2.06A");
+		dialogCaption(hd, "\tCopyright(C) 1999-2008  " + __AUTHORNAME__);
+//#if !WINDOWSCE
+//		dialogHeadline(hd, "",60);
+//#endif
+		dialogAddPage(_hd, hd);
+	}
+	if (dialogOpen(_hd) == IDOK) {
+		SaveCfg();
+	}
+	//
+	//Altキーにコマンドを割り当てるをＯＮにせず、Shift+Altを使おうとしたときに注意を促す
+	if (!text->fUseMenuKey && p_shiftselbox) {
+		attention("Shift+Altの箱形選択を設定するにあたり\nオプションダイアログの「キー」タブの\n「Altキーにコマンドを割り当てる」がＯＮでなければなりません。");
+	}
+	return NULL;
+}
+
+//メイン（設定ダイアログ呼び出しだけ）
+void main(TX *text)
+{
+	__pluginConfig(text);
+}
+
+//以下２つ、こうやるんじゃなくて、txSetHook～ したり、txReleaseHook～したりするのですか？
+//キーフックだけフック関数を別にできるのか…
+void ShiftSelBoxOn(TX* text)
+{
+	text::fShiftSelBoxOnExtern == TRUE;
+}
+void ShiftSelBoxOff(TX* text)
+{
+	text::fShiftSelBoxOnExtern == FALSE;
+}
+
+//##Shift選択時範囲長ゼロは選択解除
+
+BOOL chkSelectLength(TX *text)
+{
+	//!txGetSelectLen(text)だと文字単位以外の選択の時、おかしいので改めた
+	IFILE adrs0 = text->clipcur0;
+	if ((text->fClipMouse || text->fClipSearch || text::fMySelctbox) && (text->clipcur0 == txGetAddress(text))) {
+		text::fMySelctbox = FALSE;
+		txSelectQuit(text);
+		return TRUE;
+	}
+	return FALSE;
+}
+
+//一時的だからまあいいや
+BOOL mySelectQuit2(TX *text)
+{
+	BOOL	ret = FALSE;
+	IFILE adrs0 = text->clipcur0;
+	if ( (text->fClipMouse || text->fClipSearch || text::fMySelctbox) ) {
+		text::fMySelctbox = FALSE;
+		txSelectQuit(text);
+		ret = TRUE;
+	}
+	return ret;
+}
+
+//##選択モード切替
+
+//CLIP_VZ, CLIP_WZも考慮した SelectGetMode()
+int mySelectGetMode(TX* text)
+{
+	int r = 0;
+	
+	if (text->fClipWz) {
+		r = CLIP_WZ;
+	} else
+	if (text->fClipVz) {
+		r = CLIP_VZ;
+	} else {
+		r = txSelectGetMode(text);
+	}
+	return r;
+}
+
+/*#if !WINDOWSCE  廃止 */
+
+// _wz.h を眺めたら、わざわざ SendMessage()しなくてもいいように関数があるじゃない
+void statprintseltext(TX *text, mchar* buf)
+{
+#if 0
+	#if !WINDOWSCE
+		#pragma multidef+
+			#include <commctrl.h>
+		#pragma multidef.
+	#endif
+	SendMessage(text->hwndStatusbar, SB_SETTEXT, 4, (LPARAM)buf);
+#else
+	txStatusbarSetPaneString(text, STATUSBAR_PANE_SELECTED, buf);
+#endif
+}
+
+//"Sh選", "Sh箱" 等の表示
+void statprintselshift(TX *text)
+{
+
+ #if 1
+	if (text->fClipMouse || text->fClipSearch) {
+		statprintseltext(text, SSC_SHIFT);
+	} else if (text::fMySelctbox) {
+		statprintseltext(text, SSC_SHBOX);
+	}
+ #else
+	//マウスでの選択にも対応させたかったが、どこでフックすれば良いかいまいち分かりかねるのでパス
+	txstr strSel;
+	
+	if (text::fMySelctbox && mySelectGetMode(text) == CLIP_BOX) {
+		statprintseltext(text, SSC_SHBOX);
+		
+	} else if (text->fClipMouse || text->fClipSearch) {
+		
+		switch (mySelectGetMode(text)) {
+			case CLIP_CHAR: {
+				strSel = SSC_SHIFT;
+				break;
+			}
+			case CLIP_WORD: {
+				strSel = SSC_SHWORD;
+				break;
+			}
+			case CLIP_LINECUR: {
+				strSel = SSC_SHLINE;
+				break;
+			}
+			case CLIP_PARACUR: {
+				strSel = SSC_SHPARA;
+				break;
+			}
+			case CLIP_ALL: {
+				strSel = SSC_ALL;
+				break;
+			}
+			case CLIP_BOX: {
+				strSel = SSC_SHBOX;
+				break;
+			}
+			default: {
+				strSel = SSC_SHIFT;
+				//strSel = "SH" + inttostr(mySelectGetMode(text));
+			}
+		}
+		statprintseltext(text, (mchar *)strSel);
+	}
+ #endif
+}
+/* #endif */
+
+//選択範囲をそのままに選択モード変更
+void chgSelectmode(TX *text, int iSelmode, BOOL fClipM)
+{
+	//なんかこれを行うと text->fClipWz が効かなくなります。何故でしょう？
+	//必要以上に行うとちらつきの素
+	if ((iSelmode != CLIP_BOX) && (fClipM == text->fClipMouse) && (mySelectGetMode(text) == iSelmode))
+	{
+		return NULL;
+	}
+	txSetUndisp(text);
+	
+	int ly = text->ly;
+	int lx = 0;
+	
+	if (txIsCurFree(text)) {
+		lx = text->lx;
+	}
+	
+	IFILE adrs0 = text->clipcur0;
+	unsigned int adrs1 = txGetAddress(text);
+	txSelectQuit(text);
+	txJumpAddress(text, adrs0);
+	txSelectEx(text, iSelmode);
+	txJumpAddress(text, adrs1);
+	txSetLy(text, ly);
+	
+	if (lx > 0) {
+		txJumpLx(text, lx);
+	}
+	//
+	//Shift+Alt箱形モードをここで変更するようにした
+	if (fClipM && (iSelmode == CLIP_BOX)) {
+		text::fMySelctbox = TRUE;
+	} else {
+		text::fMySelctbox = FALSE;
+		text->fClipMouse = fClipM;
+	}
+	//
+/* #if !WINDOWSCE */
+	if (p_dispextmode) {
+		statprintselshift(text);
+	}
+/* #endif */
+	txSetDisp(text);
+}
+
+
+/* #if !WINDOWSCE */
+//範囲選択モードの表示
+void dispSelectmode(TX *text, int iSelmode)
+{
+	//表示しない設定なら終了
+	if (!p_dispextmode) return;
+	
+	txstr strbuf;
+	switch (iSelmode) {
+		case CLIP_CHAR : {
+			strbuf = SSC_CHAR;
+			break;
+		};
+		case CLIP_LINE : 
+		case CLIP_LINECUR : {
+			strbuf = SSC_LINE;
+			break;
+		};
+		case CLIP_PARA : 
+		case CLIP_PARACUR : {
+			strbuf = SSC_PARA;
+			break;
+		};
+		case CLIP_BOX : {
+			strbuf = SSC_BOX;
+			break;
+		};
+		case CLIP_WORD : {
+			strbuf = SSC_WORD;
+			break;
+		};
+		case CLIP_SENTENCE : {
+			strbuf = SSC_SENTENCE;
+			break;
+		};
+		case CLIP_ALL : {
+			strbuf = SSC_ALL;
+			break;
+		};
+		case CLIP_VZ : {
+			strbuf = SSC_VZ;
+			break;
+		};
+		case CLIP_WZ : {
+			strbuf = SSC_WZ;
+			break;
+		};
+		case CLIP_NONE : {
+			strbuf = SSC_NONE;
+			break;
+		};
+		default : {
+			strbuf = "？？";
+			break;
+		};
+	}
+	statprintseltext(text, (mchar)strbuf);
+}
+/* #endif */
+
+//通常選択モードへ移行
+BOOL chgSelectNormal(TX *text, int iSelmode)
+{
+	BOOL r = FALSE;
+	BOOL fMySelctboxPrev = text::fMySelctbox;
+	
+	text::fMySelctbox = FALSE;
+	
+	txSetUndisp(text);
+	if (p_nrmselectextend) {
+		int selmode0 = mySelectGetMode(text);
+		//
+		if (selmode0)
+		{
+			//方向感応選択のトグル選択解除が出来ていなかったのを修正
+			if ( (selmode0 == iSelmode || (iSelmode == CLIP_VZ && text->fClipVz) || (iSelmode == CLIP_WZ && text->fClipWz) ) && (iSelmode == CLIP_BOX && !fMySelctboxPrev) && !(text->fClipMouse || text->fClipSearch) ) {
+				//２回実行は終了
+				txSelectQuit(text);
+				iSelmode = CLIP_NONE;
+			} else {
+				chgSelectmode(text, iSelmode, FALSE);
+			}
+		} else {
+			txSelectEx(text, iSelmode);
+		}
+		text::fMySelctbox = FALSE;
+		text->fClipMouse = FALSE;
+		r = TRUE;
+	} else {
+		//解除ではなく、いきなり通常選択へ。
+		txSelectQuit(text);
+	}
+	txSetDisp(text);
+	return r;
+}
+
+//IDM__SELECTSWITCHの拡張版
+//選択始点引継の為、トグルで終了しません。ESC等で終了して下さい
+BOOL SelectSwitch(TX *text)
+{
+	int iSelmode;
+	if ((text::fMySelctbox || text->fClipMouse || text->fClipSearch)) {
+		iSelmode = CLIP_CHAR;
+	} else {
+		switch (mySelectGetMode(text)) {
+			case CLIP_CHAR: {
+				iSelmode = CLIP_WORD;
+				break;
+			}
+			case CLIP_WORD:	{
+				iSelmode = CLIP_SENTENCE;
+				break;
+			}
+			case CLIP_SENTENCE: {
+				iSelmode = CLIP_LINE;
+				break;
+			}
+			case CLIP_LINE: {
+				iSelmode = CLIP_PARA;
+				break;
+			}
+			default: {
+				iSelmode = CLIP_CHAR;
+				break;
+			}
+		}
+	}
+	return chgSelectNormal(text, iSelmode);
+}
+
+//##Alt+Shift+上下左右 で箱形選択を実現
+
+//廃止しました
+//idmSelectBoxPlusに吸収
+//
+//箱形選択時、idmで引いて カーソル移動
+//BOOL idmCurmvSel(TX *text, LPARAM idm)
+//{
+//	BOOL r = FALSE;
+//	
+//	if (p_moveselfv) {
+//		switch (idm){
+//			case IDM_UP: {
+//				txUp(text);
+//				r = TRUE;
+//				break;
+//			}
+//			case IDM_DOWN: {
+//				txDown(text);
+//				r = TRUE;
+//				break;
+//			}
+//		}
+//	}
+//	if (p_moveselfh) {
+//		switch (idm) {
+//			case IDM_LEFT: {
+//				txLeft(text);
+//				r = TRUE;
+//				break;
+//			}
+//			case IDM_RIGHT: {
+//				txRight(text);
+//				r = TRUE;
+//				break;
+//			}
+//		}
+//	}
+//	return r;
+//}
+
+//選択解除時の範囲先頭／末尾移動
+BOOL idmCurmvSelEnd(TX *text, LPARAM idm)
+{
+	BOOL r;
+	
+	//Shift箱形選択をカーソル移動で解除時、先頭／末尾移動を、設定に従わせるようにした
+	// 使わなくても良いらしい。
+#if 0
+	SHARE* shcommon = 0xfff8 + sh;
+	if (!shcommon->fNoUpDownAtClipMouse) {
+#else
+	if (!sh->fNoUpDownAtClipMouse) {
+#endif
+		//
+		r = TRUE;
+		
+		switch (idm) {
+			
+			//上・左の時は先頭
+			case IDM_UP: 
+#ifdef _SSP_CURMVSELEND_EXT
+			{
+				r = FALSE;
+				//break;しない
+			}
+#endif
+			case IDM_LEFT: {
+			
+#ifdef _SSP_CURMVSELEND_SVZ
+				if (text->clipcur0 < txGetAddress(text)) {
+					txJumpAddressAddLy(text, text->clipcur0);
+				}
+#else
+				txJumpAddressAddLy(text, txGetAddressSelectTop(text));
+#endif
+				break;
+			}
+			
+			//下・右の時は末尾
+			case IDM_DOWN: 
+#ifdef _SSP_CURMVSELEND_EXT
+			{
+				r = FALSE;
+				//break;しない
+			}
+#endif
+			case IDM_RIGHT: {
+				
+#ifdef _SSP_CURMVSELEND_SVZ
+				if (text->clipcur0 > txGetAddress(text)) {
+					txJumpAddressAddLy(text, text->clipcur0);
+				}
+#else
+				txJumpAddressAddLy(text, txGetAddressSelectEnd(text));
+#endif
+				break;
+			}
+		}
+	}
+	return r;
+}
+
+//Shift箱形選択の実行
+void SelectBoxPlus(TX *text)
+{
+	BOOL r = FALSE;
+	
+	if (!p_shiftselbox) { return FALSE; };
+	
+	if (!text::fMySelctbox) {
+		if (mySelectGetMode(text)) {
+			if (text->fClipMouse || p_selmodecontinue) {
+				chgSelectmode(text, CLIP_BOX, TRUE);
+			} else {
+				txSelectQuit(text);
+				if (p_shiftselbox) {
+					txSelectBox(text);
+					text::fMySelctbox = TRUE;
+				} else {
+					text::fMySelctbox = FALSE;
+				}
+			}
+		} else {
+			if (p_shiftselbox) {
+				txSelectBox(text);
+				text::fMySelctbox = TRUE;
+			}
+		}
+	}
+	if (text::fMySelctbox) {
+		text::fBakVkShift = text->fKeyVkShift;
+		text->fKeyVkShift = 1;
+		
+//		text::fMymodeFreeCurSel = text->modeFreeCursorClip;
+//		text->modeFreeCursorClip = 0;
+		
+//廃止しました
+//		if (idmCurmvSel(text, idm)) {
+//			r = TRUE;
+//		}
+	}
+	return r;
+}
+
+//Shift箱形選択の実行（キー定義(idmコマンド)版）
+void idmSelectBoxPlus(TX *text, LPARAM idm)
+{
+	BOOL	fselect = text->fClip;
+	
+	if (!fselect) {
+		txSetUndisp(text);
+	}
+	SelectBoxPlus(text);
+	if (idm == _idm_SelBoxLeft) {
+		txLeftFree(text);
+	}
+	if (idm == _idm_SelBoxRight) {
+		txRightFree(text);
+	}
+	if (idm == _idm_SelBoxUp) {
+		txUp(text);
+	}
+	if (idm == _idm_SelBoxDown) {
+		txDown(text);
+	}
+	if (!fselect) {
+		if (p_dispextmode) {
+			statprintselshift(text);
+		}
+	}
+	if (!fselect) {
+		txSetDisp(text);
+	}
+}
+
+//IDMコマンドのカーソル実行時（選択状態を判別して変更）
+BOOL idmCursorMove(TX *text, LPARAM idm)
+{
+	BOOL r = FALSE;
+	int fClip0;
+	//方向キー範囲選択の設定を反映
+	switch (text->modeKeyClip) {
+		case MC_CUA:	 {	fClip0 = CLIP_CHAR;	break; }
+		case MC_WZ:		 {	fClip0 = CLIP_WZ;	break; }
+		case MC_VZ:		 {	fClip0 = CLIP_VZ;	break; }
+	}
+	//
+	//Shift/Alt押下 及び フラグチェック
+	if (GetKeyState(VK_SHIFT) < 0) {
+		if (!p_setselboxkey && GetKeyState(VK_MENU) < 0) {
+			if (text::fShiftSelBoxOnExtern == TRUE) {
+				SelectBoxPlus(text);
+			}
+		} else {
+			if (text::fMySelctbox) {
+				if (mySelectGetMode(text)) {
+					chgSelectmode(text, fClip0, TRUE);
+				}
+			} else {
+				if (p_selmodecontinue) {
+					if (mySelectGetMode(text)) {
+						if (!text->fClipMouse) {
+							chgSelectmode(text, fClip0, TRUE);
+						}
+					//} else if (!(text->fClipMouse || text->fClipSearch)) {
+					} else {
+						//ここでなにもやらないとCLIP_WZでうまくいくらしい
+						//txSelectEx(text, fClip0);
+						//chgSelectmode(text, fClip0, TRUE);
+						//text->fClipMouse = TRUE;
+					}
+				#if 0
+				//「Shift選択開始時、通常選択ならその選択始点を引継ぐ」
+				//  を offにしているときは 何もしないようにした（当たり前！
+				} else {
+					if ((text->fClipMouse || text->fClipSearch)) {
+						chgSelectmode(text, fClip0, TRUE);
+					} else {
+						txSelectEx(text, fClip0);
+						//chgSelectmode(text, fClip0, TRUE);
+						text->fClipMouse = TRUE;
+					}
+				#endif
+				}
+			}
+			text::fMySelctbox = FALSE;
+		}
+	} else {
+//		if (text::fMySelctbox || mySelectGetMode(text))
+		if ( (text::fMySelctbox && mySelectGetMode(text)) || (text->fClipMouse || text->fClipSearch)) {
+			r = idmCurmvSelEnd(text, idm);
+			txSelectQuit(text);
+//		} else {
+//			if (mySelectGetMode(text) && (text->fClipMouse || text->fClipSearch) ) {
+//				r = idmCurmvSelEnd(text, idm);
+//				txSelectQuit(text);
+//			}
+		}
+		text::fMySelctbox = FALSE;
+	}
+	
+	// ここではやらない。代わりに IDMEXECED で行う
+// #if !WINDOWSCE
+//	//"Sh選" or "Sh箱" の表示
+//	if (p_dispextmode) {
+//		statprintselshift(text);
+//	}
+// #endif
+	return r;
+}
+
+//idm実行後（カーソル移動後の処理）
+void idmCursorMoveAfter(TX *text)
+{
+	if (text::fMySelctbox) {
+		text->fKeyVkShift = text::fBakVkShift;
+//		text->modeFreeCursorClip = text::fMymodeFreeCurSel;
+	}
+/* #if !WINDOWSCE */
+	if (p_dispextmode) {
+		statprintselshift(text);
+	}
+/* #endif */
+	return NULL;
+}
+
+//##フック部分
+
+HOOKRESULT CALLBACK texthook(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam)
+{
+	TX *text = hwndtextGetText(hwnd);
+	int idm;
+	
+	switch (message) {
+		
+#if 0
+	#if !WINDOWSCE
+		case WM_MOUSEMOVE: {
+			if ( (GetKeyState(VK_LBUTTON) < 0) ) {
+				if (text->fClipMouse) {
+					statprintselshift(text);
+				}
+			}
+			break;
+		}
+		case WM_TX_KEYDOWN:
+		case WM_LBUTTONUP: {
+			if ( (GetAsyncKeyState(VK_LBUTTON) < 0) ) {
+				statprintselshift(text);
+			}
+			break;
+		}
+	#endif
+#endif
+		case WM_TXEVENT: {
+			switch(wParam) {
+				case TXEVENT_IDMEXEC: {
+					idm = lParam;
+					
+					//自前キー定義コマンド
+					if (idm == _idm_SelBoxLeft || idm == _idm_SelBoxRight || idm == _idm_SelBoxUp || idm == _idm_SelBoxDown) {
+						idmSelectBoxPlus(text, idm);
+						return HOOK_CAPTURE;
+					}
+					
+					switch (idm) {
+						//↓ ver0.34: UNDO/REDO 時は選択解除して良いらしい
+						case IDM_UNDO:
+						case IDM_REDO:
+						{
+							mySelectQuit2(text);
+							break;
+						}
+						//↑
+						case IDM_UP :
+						case IDM_DOWN :
+						case IDM_LEFT :
+						case IDM_RIGHT :
+						case IDM_SELECTUP :
+						case IDM_SELECTDOWN :
+						case IDM_SELECTRIGHT :
+						case IDM_SELECTLEFT :
+						case IDM_JUMPFILETOPLINE :
+						case IDM_JUMPFILEENDLINE :
+						case IDM_JUMPMARKCUR :
+						case IDM_JUMPLINETOP :
+						case IDM_JUMPLINETAIL  :
+						case IDM_JUMPPREVHEAD :
+						case IDM_JUMPNEXTHEAD :
+						case IDM_JUMPPARATOP :
+						case IDM_JUMPPARAEND :
+						case IDM_JUMPSCREENTOP :
+						case IDM_JUMPSCREENEND :
+						case IDM_DOWNHIGH :
+						case IDM_UPHIGH :
+						case IDM_NEXTROLL :
+						case IDM_PREVROLL :
+						case IDM_PAGEUP :
+						case IDM_PAGEDOWN :
+						case IDM_PREVPARA :
+						case IDM_NEXTPARA :
+						case IDM_LEFTWORD :
+						case IDM_LEFTWORDMI :
+						case IDM_RIGHTWORD :
+						case IDM_RIGHTWORDMI :
+						case IDM_JUMPWORDTOPMI:
+						case IDM_JUMPWORDENDMI:
+						{
+							//全選択時のカーソル移動で、ファイル先頭／末尾に移動しない
+							if (mySelectGetMode(text) == CLIP_ALL) {
+								if (p_nojumpclipall) {
+									txSelectQuit(text);
+								}
+							}
+							if (p_shiftselbox) {
+								if (idmCursorMove(text, idm) == TRUE ) {
+									return HOOK_CAPTURE;
+								}
+							}
+							break;
+						}
+						//
+						//通常選択拡張
+						case IDM_SELECTALL : {
+							if (chgSelectNormal(text, CLIP_ALL)) {
+								text->fClipMouse = TRUE;	//苦し紛れ
+								text::fMySelctbox = FALSE;
+								return HOOK_CAPTURE;
+							}
+							break;
+						}
+						case IDM_SELECT : {
+							if (chgSelectNormal(text, CLIP_CHAR)) {
+								text::fMySelctbox = FALSE;
+								return HOOK_CAPTURE;
+							}
+							break;
+						}
+						case IDM_SELECTVZ : {
+							if (chgSelectNormal(text, CLIP_VZ)) {
+								text::fMySelctbox = FALSE;
+								return HOOK_CAPTURE;
+							}
+							break;
+						}
+						case IDM_SELECTWORD : {
+							if (chgSelectNormal(text, CLIP_WORD)) {
+								text::fMySelctbox = FALSE;
+								return HOOK_CAPTURE;
+							}
+							break;
+						}
+						case IDM_SELECTLINE : {
+							if (chgSelectNormal(text, CLIP_LINE)) {
+								text::fMySelctbox = FALSE;
+								return HOOK_CAPTURE;
+							}
+							break;
+						}
+						case IDM_SELECTBOX : {
+							if (chgSelectNormal(text, CLIP_BOX)) {
+								text::fMySelctbox = FALSE;
+								return HOOK_CAPTURE;
+							}
+							break;
+						}
+						case IDM_SELECTSWITCH : {
+							if (p_nrmselectextend) {
+								if (SelectSwitch(text)) {
+									text::fMySelctbox = FALSE;
+									return HOOK_CAPTURE;
+								}
+								break;
+							}
+						}
+					}
+					break;
+				}
+				case TXEVENT_IDMEXECED : {
+					idm = lParam;
+					
+					if (p_shiftselbox && p_setselboxkey) {
+						if (idm == _idm_SelBoxLeft || idm == _idm_SelBoxRight ||idm == _idm_SelBoxUp ||idm == _idm_SelBoxDown) {
+							idmCursorMoveAfter(text);
+							return HOOK_CAPTURE;
+						}
+					}
+					
+					switch (idm) {
+						//ここ、コメントアウトしてあったらマズいよね～
+						case IDM_UP :
+						case IDM_DOWN :
+						case IDM_LEFT :
+						case IDM_RIGHT :
+						case IDM_SELECTUP :
+						case IDM_SELECTDOWN :
+						case IDM_SELECTRIGHT :
+						case IDM_SELECTLEFT :
+						case IDM_JUMPFILETOPLINE :
+						case IDM_JUMPFILEENDLINE :
+						case IDM_JUMPMARKCUR :
+						case IDM_JUMPLINETOP :
+						case IDM_JUMPLINETAIL :
+						case IDM_JUMPPREVHEAD :
+						case IDM_JUMPNEXTHEAD :
+						case IDM_JUMPPARATOP :
+						case IDM_JUMPPARAEND :
+						case IDM_JUMPSCREENTOP :
+						case IDM_JUMPSCREENEND :
+						case IDM_DOWNHIGH :
+						case IDM_UPHIGH :
+						case IDM_NEXTROLL :
+						case IDM_PREVROLL :
+						case IDM_PAGEUP :
+						case IDM_PAGEDOWN :
+						case IDM_PREVPARA :
+						case IDM_NEXTPARA :
+						case IDM_LEFTWORD :
+						case IDM_LEFTWORDMI :
+						case IDM_RIGHTWORD :
+						case IDM_RIGHTWORDMI :
+						case IDM_JUMPWORDTOPMI:
+						case IDM_JUMPWORDENDMI:
+						{
+							if (p_shiftselbox) {
+								idmCursorMoveAfter(text);
+								return HOOK_CAPTURE;
+							}
+							break;
+						}
+						
+						//これだけでいいと思う
+						case IDM_COPY :
+						case IDM_ADDCOPY :
+						case IDM_POP : {
+							if ((mySelectGetMode(text) == CLIP_BOX) && p_copyboxmode) {
+								chgSelectmode(text, mySelectGetMode(text), (text->fClipMouse || text->fClipSearch || text::fMySelctbox));
+								return HOOK_CAPTURE;
+							}
+							break;
+						}
+				/* #if !WINDOWSCE */
+						case IDM_SELECT : 
+						case IDM_SELECTVZ : 
+						case IDM_SELECTWORD : 
+						case IDM_SELECTLINE : 
+						case IDM_SELECTBOX : 
+						case IDM_SELECTSWITCH : 
+						case IDM_SELECTALL : 
+						{
+							if (p_dispextmode) {
+								dispSelectmode(text, mySelectGetMode(text));
+							}
+							break;
+						}
+				/* #endif */
+					}
+				}
+				case TXEVENT_CURSORMOVE : {
+					//if (!p_lenzeroquitsel) text::fMySelctbox &= mySelectGetMode(text); //必要無い模様
+					if (p_lenzeroquitsel) {
+						if (GetKeyState(VK_SHIFT) < 0) {
+							chkSelectLength(text);
+						}
+					}
+					break;
+				}
+			}
+			break;
+		}
+	}
+	return HOOK_CONTINUE;
+}
+
+void __new(void)
+{
+	_idm_SelBoxLeft  = idmRegister();
+	_idm_SelBoxRight = idmRegister();
+	_idm_SelBoxUp    = idmRegister();
+	_idm_SelBoxDown  = idmRegister();
+}
+
+void __on_txFrameNew(TX *text)
+{
+	//バイナリモードでは行わない
+	if (!text->fBinedit) {
+		
+		text::fMySelctbox = FALSE;
+		text::fShiftSelBoxOnExtern = FALSE;
+		
+		if (p_shiftselbox) {
+			text::fShiftSelBoxOnExtern = TRUE;
+			
+			if (p_setselboxkey) {
+				//任意のキーに定義する
+#if 0
+				_idm_SelBoxLeft  = idmRegister();
+				_idm_SelBoxRight = idmRegister();
+				_idm_SelBoxUp    = idmRegister();
+				_idm_SelBoxDown  = idmRegister();
+#endif
+				txKeySetWzcmd(text, (mchar *)p_strkeySBleft,  _idm_SelBoxLeft );
+				txKeySetWzcmd(text, (mchar *)p_strkeySBright, _idm_SelBoxRight);
+				txKeySetWzcmd(text, (mchar *)p_strkeySBup,    _idm_SelBoxUp   );
+				txKeySetWzcmd(text, (mchar *)p_strkeySBdown,  _idm_SelBoxDown );
+				//
+			} else {
+				//Shift+Alt+上下左右固定（GetKeyState()で VK_SHIFTとVK_MENUを見る）
+				txKeySetWzcmd(text, "+%{Up}", IDM_UP);
+				txKeySetWzcmd(text, "+%{Down}", IDM_DOWN);
+				txKeySetWzcmd(text, "+%{Left}", IDM_LEFT);
+				txKeySetWzcmd(text, "+%{Right}", IDM_RIGHT);
+				//
+				//↓他のキーでも箱形選択を行いたいときはこんな風にする
+				//例：
+				//txKeySetWzcmd(text, "+%{Home}", IDM_JUMPLINETOP);
+				//txKeySetWzcmd(text, "+%{End}", IDM_JUMPLINETAIL);
+				//↑
+			}
+			txSetHookWndproctextTxpcode(text, texthook);
+		}
+	}
+}
+
+//再コンパイル時の開放処理
+int __pluginRelease(TX* text)
+{
+	return TRUE;
+}
+
+
+//デバッグ用に…
+void state(TX* text)
+{
+	information("text->fClip = %d\ntext->fClipMouse = %d\nmySelectGetMode() = %d\ntext->clipcur0 = %d\ntxGetAddress() = %d", text->fClip, text->fClipMouse, mySelectGetMode(text), text->clipcur0, txGetAddress(text));
+}
+
+#define __prmSave SaveCfg
+
+//============== End of SSPLUS.TXC ==============//

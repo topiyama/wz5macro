@@ -1,0 +1,300 @@
+//============== MB_TPYM.TXC ==============//
+//{###WZ MAIL 拡張 by topiyama
+//  mailto: topiyama(a)theia.ocn.ne.jp
+
+//##作成履歴
+//
+//# ver 00.01    2007/05/30(Wed)
+//									初版
+//									・メールビューペインでアンダーライン、全角空白記号、タブ記号を表示する
+//									・ESCキーで絞り込みを解除可能にする
+//# ver 00.02    2009/01/17(Sat)
+//									・絞り込み実行時にリストをフォーカス
+//									・マウスの進む／戻るボタンに機能割り当て
+//# ver 00.03    2009/06/15(Mon)
+//                                    ・絞り込み処理中のステータスバー表示を変える (絞り込みでリストをフォーカス がONの時)
+//                                    ・CPU0固定で動作させる
+
+//{###ソース部分
+
+#pragma MAILBASE
+#include <windows.h>
+#include <_idm.h>
+
+//##定義
+#define		__MACRONAME__		"WZ MAIL 拡張 topiyama版"	//マクロ名称
+#define		__AUTHORNAME__		"topiyama"					//作者
+#define        __MACROVERSION__    "00.03"                        //バージョン
+
+#ifndef WM_XBUTTONUP
+#define WM_XBUTTONUP                    0x020C
+#endif
+#ifndef WM_XBUTTONDOWN
+#define WM_XBUTTONDOWN                  0x020B
+#endif
+#ifndef XBUTTON1
+#define XBUTTON1            0x0001
+#endif
+#ifndef XBUTTON2
+#define XBUTTON2            0x0002
+#endif
+
+
+//##設定用保存パラメータ
+permanent int        p_fDispUnder        = TRUE;        //アンダーラインの表示
+permanent int        p_fDispJspace        = TRUE;        //全角空白記号の表示
+permanent int        p_fDispTab            = TRUE;        //タブ記号の表示
+permanent int        p_fSearchEnd_Esc    = TRUE;        //ESCキーで絞り込みを解除する
+permanent int        p_fSearchFocus        = TRUE;        //絞り込みでリストをフォーカス
+permanent int        p_nXbutton1Cmd        = 0;        //マウス戻るボタン(XBUTTON1)
+permanent int        p_nXbutton2Cmd        = 0;        //マウス進むボタン(XBUTTON2)
+permanent int        p_fAffineCpu0        = FALSE;    //CPU0固定で動作させる
+
+//##宣言
+static HOOKRESULT CALLBACK wndprocHook(HWND hwnd,UINT message,WPARAM wParam,LPARAM lParam);
+
+
+int aXbuttonXCmdArray[] = {
+	0,					//"割り当てなし"
+	IDM_JUMPNEXTHEAD,	//"進む(JUMPNEXTHEAD)"
+	IDM_JUMPPREVHEAD,	//"戻る(JUMPPREVHEAD)"
+	IDM_UP,				//"上へ(UP)"
+	IDM_DOWN,			//"下へ(DOWN)"
+	0,
+	0,
+	0,
+	0
+};
+
+#define GET_XBUTTONX_IDMCMD(a)  (int)(aXbuttonXCmdArray[0x7 & (a)])
+
+
+//##プラグインマクロのインターフェース
+
+//プラグインマクロのプロパティ
+void __pluginGetProperty(mchar *prop, txstr res)
+{
+	if (!stricmp(prop,"name")) 		res = __MACRONAME__;
+	if (!stricmp(prop,"author")) 	res = __AUTHORNAME__;
+	if (!stricmp(prop,"version")) 	res = __MACROVERSION__;
+	return;
+}
+
+//ヘルプ
+void __pluginHelp (TX *text)
+{
+	information(
+		"おことわり：\n"
+		"アンダーライン、全角空白記号、タブ記号の表示機能は\n"
+		"添付ファイルのプレビュー画面には反映されない場合があります"
+	);
+}
+
+//再コンパイル時の開放処理
+int __pluginRelease(TX* text)
+{
+	return TRUE;
+}
+
+//表テキストが新しく開いたとき
+void __on_mbFrameNew(MAILBASE* mailer)
+{
+#pragma warnfuncnotcall-
+	mbSetHookTxpcode(mailer,wndprocHook);
+#pragma warnfuncnotcall.
+}
+
+//マクロが組み込まれた時
+void __new(void)
+{
+    HANDLE    hProcess = 0;
+    DWORD    dwProcessAffinityMask = 0;
+    DWORD    dwSystemAffinityMask = 0;
+   
+    if (p_fAffineCpu0) {
+        //自プロセスの CPU affinity を取得
+        hProcess = GetCurrentProcess();
+        if (0 != GetProcessAffinityMask(hProcess, &dwProcessAffinityMask, &dwSystemAffinityMask)) {
+           
+            //CPU0が使用可能で、かつ マルチコア(CPU)かどうかの判定
+            if ((dwSystemAffinityMask & 1) && (dwSystemAffinityMask > 1)) {
+                SetProcessAffinityMask(hProcess, 1);
+            }
+        }
+    }
+}
+
+//マクロプログラムが破棄される前
+void __delete()
+{
+}
+
+//##設定ダイアログ
+void __pluginConfig(TX* text)
+{
+	HSTRBLK sb1, sb2;
+
+	HDIALOG hd = dialog("\m 設定");
+	{
+		dialogCheck(hd, "アンダーラインの表示", &p_fDispUnder);
+		dialogCheck(hd, "全角空白記号の表示", &p_fDispJspace);
+		dialogCheck(hd, "タブ記号の表示", &p_fDispTab);
+        dialogHeadline(hd, "",28);
+		dialogCheck(hd, "ESCキーで絞り込みを解除する", &p_fSearchEnd_Esc);
+		dialogCheck(hd, "絞り込みでリストをフォーカス", &p_fSearchFocus);
+		
+        dialogHeadline(hd, "",28);
+		dialogCaption(hd, "マウスのボタン定義");
+		sb1 = sbNewAlloc((WORD)1024);
+		sbAdd(sb1, "割り当てなし");
+		sbAdd(sb1, "進む(JUMPNEXTHEAD)");
+		sbAdd(sb1, "戻る(JUMPPREVHEAD)");
+		sbAdd(sb1, "上へ(UP)");
+		sbAdd(sb1, "下へ(DOWN)");
+		dialogControlStrblk(hd, sb1);
+		dialogChoice(hd, "進むボタン", 8, &p_nXbutton2Cmd, 18, NULL);
+		
+		sb2 = sbNewAlloc((WORD)1024);
+		sbAdd(sb2, "割り当てなし");
+		sbAdd(sb2, "進む(JUMPNEXTHEAD)");
+		sbAdd(sb2, "戻る(JUMPPREVHEAD)");
+		sbAdd(sb2, "上へ(UP)");
+		sbAdd(sb2, "下へ(DOWN)");
+		dialogControlStrblk(hd, sb2);
+		dialogChoice(hd, "戻るボタン", 8, &p_nXbutton1Cmd, 18, NULL);
+
+        dialogHeadline(hd, "",28);
+        dialogCheck(hd, "CPU0固定で動作させる", &p_fAffineCpu0);
+        dialogIndent(hd, 4);
+        dialogCaptionDynamicEx(hd,
+            "チェックを入れると、CPU0でのみスレッドが動作するようにします。"
+            "マルチコアCPUでの不安定動作が解消するかもしれません。"
+            "シングルコアCPUまたはCPU0が使用できない場合は効果ありません。",
+            30, 4);
+        dialogIndent(hd, -4);
+       
+	}
+	if (dialogOpen(hd)) {
+		__prmSave();
+	}
+	sbDelete(sb1);
+	sbDelete(sb2);
+}
+
+//##サブルーチン
+BOOL mbOnFilter(MAILBASE* mailer)
+{
+	MBFIND* mbfind = mailer->filter;
+	if (mbfind && mbfind->fOnFilter) {
+		return 1;
+	}
+	return 0;
+}
+
+//##フック関数
+
+static HOOKRESULT CALLBACK wndprocHook(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	HOOKRESULT	retval = HOOK_CONTINUE;
+	
+	//ビューペインが変更された時に発行されるイベント
+	if (message == WM_TIMER) {
+		if (
+			 wParam == (WPARAM)WM_TIMER_MBCONTENTCHANGE
+//		  || wParam == WM_TIMER_MBLISTFLUSHMODAL  //←必要ない
+//		  || wParam == WM_TIMER_MBFILTERFLUSH     //←必要ない
+		) {
+			//メールビューペインに対する処理
+			MAILBASE* mailer = hwndGetContext(hwnd);
+			if (mailer->text) {
+				if (p_fDispTab) {
+					mailer->text->fDispTab    = (BBOOL)TRUE;
+				}
+				if (p_fDispJspace) {
+					mailer->text->fDispJspace = (BBOOL)TRUE;
+				}
+				if (p_fDispUnder) {
+					if (!(mailer->text->fClipMouse || mailer->text->fClipSearch)) {
+						mailer->text->fDispUnder  = (BBOOL)TRUE;
+					}
+				}
+				txDispAll(mailer->text);
+			}
+			//添付ファイルのビューに対する処理（不完全）
+			if ((mailer->mbcont) && (mailer->mbcont->hwndPreview)) {
+				TX* textPreview = hwndbaseGetText(mailer->mbcont->hwndPreview);
+				if (textPreview) {
+					if (p_fDispUnder) {
+						if (!(textPreview->fClipMouse || textPreview->fClipSearch)) {
+							textPreview->fDispUnder  = (BBOOL)TRUE;
+						}
+					}
+					if (p_fDispJspace) {
+						textPreview->fDispTab    = (BBOOL)TRUE;
+					}
+					if (p_fDispTab) {
+						textPreview->fDispJspace = (BBOOL)TRUE;
+					}
+					txDispAll(textPreview);
+				}
+			}
+		}
+	}
+	if (message == WM_TXEVENT) {
+        if (wParam == TXEVENT_IDMEXEC) {
+            //絞り込み処理中のステータスバー表示を変える
+            if (lParam == IDM_UISEARCH) {
+                if (p_fSearchFocus) {
+                    MAILBASE* mailer = hwndGetContext(hwnd);
+                    mbstatprintf(mailer, "絞り込み中...");
+                }
+            }
+        }
+		if (wParam == TXEVENT_IDMEXECED) {
+			//絞り込みでリストをフォーカス
+			if (lParam == IDM_UISEARCH) {
+				if (p_fSearchFocus) {
+					MAILBASE* mailer = hwndGetContext(hwnd);
+					mbSetFocus(mailer, FOCUS_MAILLIST);
+				}
+			}
+			//ESCキーに割り当てられたイベント IDM_APP9
+			if (lParam == IDM_APP9) {
+				if (p_fSearchEnd_Esc) {
+					MAILBASE* mailer = hwndGetContext(hwnd);
+					if (mbOnFilter(mailer)) {
+						mbIdmExec(mailer, IDM_SEARCHEND);
+                        //retval = HOOK_CAPTURE;
+					}
+				}
+			}
+		}
+	}
+	//マウスの進む／戻るキー
+	if (message == WM_PARENTNOTIFY)
+	{
+		if (LOWORD(wParam) == (WORD)WM_XBUTTONDOWN) {
+			if (HIWORD(wParam) == (WORD)XBUTTON1) {
+				int	cmd = GET_XBUTTONX_IDMCMD(p_nXbutton1Cmd);
+				if (cmd) {
+					//mbIdmExec(mailer, IDM_DOWN);
+					MAILBASE* mailer = hwndGetContext(hwnd);
+					mbIdmExec(mailer, cmd);
+					retval = HOOK_CAPTURE;
+				}
+			}
+			else if (HIWORD(wParam) == (WORD)XBUTTON2) {
+				int	cmd = GET_XBUTTONX_IDMCMD(p_nXbutton2Cmd);
+				if (cmd) {
+					//mbIdmExec(mailer, IDM_UP);
+					MAILBASE* mailer = hwndGetContext(hwnd);
+					mbIdmExec(mailer, cmd);
+					retval = HOOK_CAPTURE;
+				}
+			}
+		}
+	}
+	return (retval);
+}
+
+//============== End of MB_TPYM.TXC ==============//

@@ -1,0 +1,411 @@
+//============== TP_MODIME5.TXC ==============//
+//{###IME再変換拡張(改造版) by topiyama
+//  mailto: topiyama(a)theia.ocn.ne.jp
+//
+//本プログラムは、WZ EDITOR 5.0 用のプラグインマクロです。
+//WZ EDITOR 5.0 のプラグインマクロとして組み込んでください。
+//
+//##機能説明
+//
+//1. IME前後参照変換対応 TP_DOCFEED.TXC の機能を組み込み
+//     IMEの前後参照変換に対応できるようになります
+//     動作確認として、次の操作を行いましょう
+//         花が
+//         布を
+//         時間を
+//     この３行の行末にカーソルを置いて、「さいた」と入力して変換してください。
+//     前後参照変換が有効になっていれば、
+//         花が咲いた
+//         布を裂いた
+//         時間を割いた
+//     それぞれ前の単語に合った変換が行われます
+//
+//2. M.Shibata氏作 IME 再変換拡張 reconv.txc の機能を組み込み ＋ ATOK対応
+//     非選択時の再変換で、より自然な文節区切りで単語を再変換できるようにします
+//     動作確認として、次の操作を行いましょう
+//         花がさいた
+//         布をさいた
+//         時間をさいた
+//     この３行の「を」より後ろの「さいた」のいずれかの場所にカーソルを置いて、再変換をしてください。
+//     再変換拡張が有効になっていれば、どの位置にカーソルを置いても「さいた」に対して再変換を行い、
+//     更に、再変換の第一候補がそれぞれ前の単語に合った単語が現れます
+//         花が咲いた
+//         布を裂いた
+//         時間を割いた
+//
+//3. IME ON/OFF の状態でアンダーラインの色を変更します
+//     Sakakibara, Y. 氏作 modime2.txc の機能を組み込みました。
+//     ちなみに、IME ON/OFF の状態でキャレットの色を変更するには
+//     「SetCaretColor」というフリーソフトが有用です。
+//
+//
+//##作成履歴
+//
+//# ver 00.01    2007/08/28(Tue)
+//									初版
+//# ver 00.02    2007/09/11(Tue)
+//									前後参照変換が出来ていなかったので修正
+//# ver 00.03    2009/01/17(Sat)
+//									バージョン番号を間違えていたのを修正
+//									その他、微妙に修正
+//# ver 00.03    2009/02/06(Fri)
+//									ツールバーの検索ボックスと、メールエディタのエディットボックスから
+//									本文に移動したときにも状態によって色を変えるようにした
+//									（エディットボックス内でのIME ON/OFF変更は認識しません）
+
+#include <windows.h>
+
+#define __MACRONAME__       "IME再変換拡張(改造版)"
+#define __MACROVERSION__    "00.04"
+#define __AUTHORNAME__      "topiyama"
+
+#pragma multidef+
+
+/* Windows Platform SDK の imm.h より  */
+
+#define WM_IME_REQUEST                  0x0288
+
+// wParam of report message WM_IME_REQUEST
+#define IMR_COMPOSITIONWINDOW           0x0001
+#define IMR_CANDIDATEWINDOW             0x0002
+#define IMR_COMPOSITIONFONT             0x0003
+#define IMR_RECONVERTSTRING             0x0004
+#define IMR_CONFIRMRECONVERTSTRING      0x0005
+#define IMR_QUERYCHARPOSITION           0x0006
+#define IMR_DOCUMENTFEED                0x0007
+
+extern "imm32.dll" {
+	HIMC WINAPI ImmGetContext(HWND);
+	BOOL WINAPI ImmReleaseContext(HWND, HIMC);
+	BOOL WINAPI ImmSetCompositionStringA(HIMC, DWORD dwIndex, LPVOID lpComp, DWORD, LPVOID lpRead, DWORD);
+	BOOL WINAPI ImmSetCompositionStringW(HIMC, DWORD dwIndex, LPVOID lpComp, DWORD, LPVOID lpRead, DWORD);
+}
+
+typedef struct tagRECONVERTSTRING {
+	DWORD dwSize;
+	DWORD dwVersion;
+	DWORD dwStrLen;
+	DWORD dwStrOffset;
+	DWORD dwCompStrLen;
+	DWORD dwCompStrOffset;
+	DWORD dwTargetStrLen;
+	DWORD dwTargetStrOffset;
+} RECONVERTSTRING, *PRECONVERTSTRING, NEAR *NPRECONVERTSTRING, FAR *LPRECONVERTSTRING;
+
+#pragma multidef.
+
+permanent int p_fModReconv  = TRUE;		//再変換処理を改造する
+permanent int p_fSelect     = TRUE;		//対象文字列を範囲選択する
+permanent int p_fEnDocFeed  = TRUE;		//前後参照変換を有効にする
+permanent int p_fModUndline = FALSE;	//IMEのON/OFFでアンダーラインの色を変更する
+permanent int p_rgbImeOn;				//	IME ON
+permanent int p_rgbImeOff;				//	IME OFF
+
+//前後参照変換用の情報収集
+int fillDocumentFeedString(TX *text, RECONVERTSTRING *pReconv)
+{
+	// pReconvがNULLなら必要なサイズを返す。
+	if (pReconv == 0) {
+		return (sizeof(RECONVERTSTRING) + txGetParaContentLen(text) + 1);
+	}
+	int sizeStr = (int)pReconv->dwSize - sizeof(RECONVERTSTRING);
+	mchar *pszStr = (mchar*)pReconv + sizeof(RECONVERTSTRING);
+	txGetParaEx(text, pszStr, (IBUFF)sizeStr);
+	
+	pReconv->dwVersion			= 0;
+	pReconv->dwStrLen			= (DWORD)sizeStr;
+	pReconv->dwStrOffset		= sizeof(RECONVERTSTRING);
+	pReconv->dwCompStrLen		= 0;
+	pReconv->dwCompStrOffset	= 0;
+	
+	if (text->fClip || text->fClipMouse || text->fClipSearch) {
+		pReconv->dwTargetStrLen		= txGetSelectLen(text);
+		pReconv->dwTargetStrOffset	= txGetAddressSelectTop(text) - txGetParaTop(text);
+	}
+	else {
+		pReconv->dwTargetStrLen		= 0;
+		pReconv->dwTargetStrOffset	= txGetAddress(text) - txGetParaTop(text);
+	}
+	
+	return (int)pReconv->dwSize;
+}
+
+//再変換用の情報収集
+int fillReconvertString(TX *text, RECONVERTSTRING *pReconv)
+{
+	// textのカーソル位置に基づいてRECONVERTSTRINGを埋める。
+	// pReconvがNULLなら必要なサイズを返す。
+	// Note: 本当はmcharを直接入れるとShift_JIS範囲外の文字で問題がある。
+
+	// pReconvがNULLなら必要なサイズを返す。
+	if (pReconv == 0) {
+		return sizeof(RECONVERTSTRING) + txGetParaContentLen(text) + 1;
+	}
+	if (txIsClipInPara(text)) {
+		// 単語選択時は選択範囲全体が再変換対象。
+		int sizeStr = (int)pReconv->dwSize - sizeof(RECONVERTSTRING);
+		mchar *pszStr = (mchar*)pReconv + sizeof(RECONVERTSTRING);
+		txGetParaEx(text, pszStr, (IBUFF)sizeStr);
+		
+		pReconv->dwStrLen          = (DWORD)strlen(pszStr);			//段落全体を渡す
+		pReconv->dwStrOffset       = (DWORD)sizeof(RECONVERTSTRING);
+		pReconv->dwTargetStrLen    = (DWORD)txGetSelectLen(text);	//Targetは選択範囲を指定
+		pReconv->dwTargetStrOffset = (DWORD)(txGetAddressSelectTop(text) - txGetParaTop(text));
+		
+		pReconv->dwCompStrLen      = pReconv->dwTargetStrLen;		//Targetと同じ値を渡す
+		pReconv->dwCompStrOffset   = pReconv->dwTargetStrOffset;
+		
+	} else {
+		// 非選択時は段落全体を渡してIMEに決定させる。
+		int sizeStr = (int)pReconv->dwSize - sizeof(RECONVERTSTRING);
+		mchar *pszStr = (mchar*)pReconv + sizeof(RECONVERTSTRING);
+		txGetParaEx(text, pszStr, (IBUFF)sizeStr);
+		
+		//DOCUMENTFEEDと同じ値を渡す
+		pReconv->dwStrLen          = (DWORD)strlen(pszStr);
+		pReconv->dwStrOffset       = (DWORD)sizeof(RECONVERTSTRING);
+		pReconv->dwCompStrLen      = 0;
+		pReconv->dwCompStrOffset   = 0;
+		pReconv->dwTargetStrLen    = 0;
+		pReconv->dwTargetStrOffset = (DWORD)(txGetAddress(text) - txGetParaTop(text)); //現在位置を指定
+	}
+	return (int)pReconv->dwSize;
+}
+
+//再変換時のカーソル位置調整
+void treatReconvertTarget(TX *text, RECONVERTSTRING *pReconv, BOOL fSelect)
+{
+	if (txIsClipInPara(text)) {
+		txJumpSelectTop(text);
+	} else {
+		txJumpAddress(text, txGetParaTop(text) + pReconv->dwTargetStrOffset);
+	}
+	if (fSelect) {
+		if (!txIsClipInPara(text)) {
+			// すでに範囲選択されている場合は何もしなくてよいので。
+			txSelectEx(text, CLIP_CHAR);
+			txRightBytes(text, pReconv->dwTargetStrLen);
+			txJumpSelectTop(text);
+			text->fClipMouse = (FBOOL)TRUE;
+		}
+	} else {
+		txDeleteBytes(text, pReconv->dwTargetStrLen);
+	}
+}
+
+//アンダーラインの色変更
+static void SetUnderline(TX* text,BOOL fOpen)
+{
+	COLORREF rgbUnderline = text->rgbUnderline;
+	text->rgbUnderline = (COLORREF) (fOpen ? p_rgbImeOn : p_rgbImeOff);
+	if (text->rgbUnderline != (COLORREF)rgbUnderline) {
+		txFlushColor(text);
+		txDispText(text,text->ly,text->ly);
+	}
+}
+
+//設定ダイアログ
+void option(TX *text)
+{
+	HDIALOG _hd = dialog("設定 - " + __MACRONAME__);
+	{
+		HDIALOG hd = dialog("変換");
+		dialogCheck(hd, "再変換処理を改造する(&R)",     &p_fModReconv);
+		dialogIndent(hd, 4);
+		dialogCaptionDynamicEx(hd,
+			"チェックを入れると、範囲選択を行わずに再変換を行ったときに、"
+			"漢字かな混じりの単語でも、文節を認識した再変換候補が表示されるようになります。",
+			40, 3);
+		dialogIndent(hd, -4);
+		dialogCheck(hd, "対象文字列を範囲選択する(&S)", &p_fSelect);
+		dialogIndent(hd, 4);
+		dialogCaptionDynamicEx(hd,
+			"チェックを入れると、再変換時に対象文字列が範囲選択された状態でテキストに残ります。"
+			"チェックをはずすと、対象文字列はテキストからいったん削除されます。"
+			"これにより、後続の文字列が再変換中の文字列によって覆い隠される場合があります。",
+			40, 4);
+		dialogIndent(hd, -4);
+		dialogHeadline(hd,"",40);
+		dialogCheck(hd, "前後参照変換を有効にする(&F)", &p_fEnDocFeed);
+		dialogIndent(hd, 4);
+		dialogCaptionDynamicEx(hd,
+			"チェックを入れると、漢字変換のときに、前後の単語や文脈に沿った変換候補が"
+			"優先されるようになります。",
+			40, 2);
+		dialogAddPage(_hd, hd);
+	}
+	{
+		HDIALOG hd = dialog("表示");
+		dialogSetH(hd);
+	//	dialogHeadline(hd,"アンダーライン色",37);
+		dialogCheck(hd, "IMEのON/OFFでアンダーラインの色を変更する(&U)", &p_fModUndline);
+		dialogLF(hd);
+		dialogIndent(hd, 2);
+		dialogCaption(hd, "色の指定");
+		dialogColor(hd,"IME ON...","IME ON",&p_rgbImeOn,10,NULL);
+		dialogColor(hd,"IME OFF...","IME OFF",&p_rgbImeOff,10,NULL);
+		dialogLF(hd);
+		dialogSpaceV(hd);
+		dialogIndent(hd, 4);
+		dialogCaptionDynamicEx(hd,
+			"有効にすると、文書の設定の色分けではなく、ここで指定した色が反映されるようになります。"
+			"また、処理が完全ではなく、切り替わらない場合がありますが、ご了承ください。",
+			40, 4);
+		dialogAddPage(_hd, hd);
+	}
+	{
+		HDIALOG hd = dialog("About");
+
+		dialogCaption(hd, __MACRONAME__ "  Version " + __MACROVERSION__);
+	    dialogCaption(hd, __AUTHORNAME__);
+		dialogAddPage(_hd, hd);
+	}
+    if (dialogOpen(_hd)) {
+        __prmSave();
+    }
+}
+
+void main(TX *text)
+{
+	option(text);
+}
+
+//フック関数
+static HOOKRESULT CALLBACK HookWndprocText(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	switch (uMsg) {
+		case WM_IME_NOTIFY: {
+			if (p_fModUndline) {
+				TX* text = hwndtextGetText(hwnd);
+				if (wParam == IMN_SETOPENSTATUS && !text->key->f2Stroke) {
+					SetUnderline(text, (BOOL)wndImeGetOpen(hwnd));
+				}
+			}
+			//return HOOK_CONTINUE;
+			break;
+		}
+		case WM_IME_SETCONTEXT: {
+			// 00.04 での追加機能
+			//ツールバーの検索ボックスや、メールエディタのテキストボックスでIME ON/OFFを
+			//変更して移動してきたときも認識する
+			if (p_fModUndline) {
+				TX* text = hwndtextGetText(hwnd);
+				if (wParam == 1) {
+					SetUnderline(text, (BOOL)wndImeGetOpen(hwnd));
+				}
+				else if (wParam == 0) {
+					SetUnderline(text, (BOOL)wndImeGetOpen(hwnd));
+				}
+			}
+			//return HOOK_CONTINUE;
+			break;
+		}
+		case WM_TXEVENT: {
+			if (p_fModUndline) {
+				TX* text = hwndtextGetText(hwnd);
+				switch(wParam) {
+					case TXEVENT_IDMEXEC: {
+						if (lParam == IDM_UICUSTMIZE) {
+							text->rgbUnderline = (COLORREF)p_rgbImeOff;
+						}
+						//return HOOK_CONTINUE;
+						break;
+					}
+					case TXEVENT_IDMEXECED: {
+						if (lParam == IDM_UICUSTMIZE || lParam == IDM_TXC_CONFIG) {
+							SetUnderline(text, (BOOL)text->fImeOnInactive);
+						}
+						//return HOOK_CONTINUE;
+						break;
+					}
+				}
+			}
+			break;
+		}
+		case WM_IME_REQUEST: {
+			switch (wParam) {
+				case IMR_DOCUMENTFEED: {
+					if (p_fEnDocFeed) {
+						TX *text = hwndtextGetText(hwnd);
+						RECONVERTSTRING *pReconv = (RECONVERTSTRING*) lParam;
+						int sizeReconv = fillDocumentFeedString(text, pReconv);
+						txSetHookWndproctextResult(text, sizeReconv);
+						return HOOK_CAPTURE;
+					}
+					break;
+				}
+				case IMR_RECONVERTSTRING: {
+					if (p_fModReconv) {
+						TX *text = hwndtextGetText(hwnd);
+						RECONVERTSTRING *pReconv = (RECONVERTSTRING*) lParam;
+						int sizeReconv = fillReconvertString(text, pReconv);
+						txSetHookWndproctextResult(text, sizeReconv);
+						return HOOK_CAPTURE;
+					}
+					break;
+				}
+				case IMR_CONFIRMRECONVERTSTRING: {
+					if (p_fModReconv) {
+						TX *text = hwndtextGetText(hwnd);
+						RECONVERTSTRING *pReconv = (RECONVERTSTRING*) lParam;
+						treatReconvertTarget(text, pReconv, p_fSelect);
+						//return HOOK_CONTINUE;
+					}
+					break;
+				}
+			}
+		}
+		break;
+    }
+    return HOOK_CONTINUE;
+}
+
+//表テキストが新しく開いたとき
+void __on_txFrameNew(TX *text)
+{
+	if (p_fModUndline) {
+		switch(text->modeImeAtOpen) {
+			case ISF_NONE:
+				SetUnderline(text, (BOOL)wndImeGetOpen(text->hwndtext)); break;
+			case ISF_OFF:
+				SetUnderline(text,FALSE); break;
+			default:
+				SetUnderline(text,TRUE);
+		}
+	}
+/* ここで「必ず関数は呼ばれません」の警告が出るので pragmaで塞いでしまう */
+#pragma warnfuncnotcall-
+	txSetHookWndproctextTxpcode(text, HookWndprocText);
+#pragma warnfuncnotcall.
+
+}
+
+void __new(void)
+{
+}
+
+//プラグインマクロ用設定
+void __pluginConfig(TX *text)
+{
+	option(text);
+}
+
+//再コンパイル時の開放処理
+int __pluginRelease(TX* text)
+{
+	return TRUE;
+}
+
+/*
+void __pluginHelp (TX *text)
+{
+}
+*/
+
+//プラグインマクロ用パラメータ
+void __pluginGetProperty(mchar *prop, txstr res)
+{
+	if (!stricmp(prop, "name")) res = __MACRONAME__;
+	if (!stricmp(prop, "author")) res = __AUTHORNAME__;
+	if (!stricmp(prop, "version")) res = __MACROVERSION__;
+}

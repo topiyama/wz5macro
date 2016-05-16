@@ -1,0 +1,85 @@
+;
+; WZGrepHere.inf - ExplorerからWZ GREP Version 0.02
+;
+
+[version]
+signature="$CHICAGO$"
+
+[DefaultInstall]
+CopyFiles=Inf.Copy
+AddReg=WZGrepHere.Reg
+
+[DefaultInstall.ntx86]
+CopyFiles=Inf.Copy
+AddReg=WZGrepHere.Reg.ntx86
+
+[DefaultInstall.ntamd64]
+CopyFiles=Inf.Copy
+AddReg=WZGrepHere.Reg.ntamd64
+
+[DefaultUninstall]
+DelFiles=Inf.Copy
+DelReg=WZGrepHere.Reg
+
+[DefaultUninstall.ntx86]
+DelFiles=Inf.Copy
+DelReg=WZGrepHere.Reg.ntx86
+
+[DefaultUninstall.ntamd64]
+DelFiles=Inf.Copy
+DelReg=WZGrepHere.Reg.ntamd64
+
+[Inf.Copy]
+WZGrepHere.INF
+
+[SourceDisksNames]
+55=%TITLE%,"",1
+
+[SourceDisksFiles]
+Inf.Copy=55
+
+[DestinationDirs]
+Inf.Copy=17
+
+[WZGrepHere.Reg]
+HKCR,%DIRSG%
+HKCR,%DIRSG%,,,%MENU%
+HKCR,%DIRSG%\command\,,,%01% %CMD%
+HKCR,%DRVSG%
+HKCR,%DRVSG%,,,%MENU%
+HKCR,%DRVSG%\command\,,,%01% %CMD%
+HKLM,%SMWCUG%
+HKLM,%SMWCUG%,DisplayName,,%TITLE% (削除のみ)
+HKLM,%SMWCUG%,UninstallString,,"rundll.exe setupx.dll,InstallHinfSection DefaultUninstall 132 %17%\WZGrepHere.INF"
+
+[WZGrepHere.Reg.ntx86]
+HKCR,%DIRSG%
+HKCR,%DIRSG%,,,%MENU%
+HKCR,%DIRSG%\command\,,,%01%\%CMD%
+HKCR,%DRVSG%
+HKCR,%DRVSG%,,,%MENU%
+HKCR,%DRVSG%\command\,,,%01%\%CMD%
+HKLM,%SMWCUG%
+HKLM,%SMWCUG%,DisplayName,,%TITLE% (削除のみ)
+HKLM,%SMWCUG%,DisplayIcon,,%01%"\WZEDITOR.EXE,2"
+HKLM,%SMWCUG%,UninstallString,,"RunDll32.exe syssetup.dll,SetupInfObjectInstallAction DefaultUninstall.ntx86 132 %17%\WZGrepHere.INF"
+
+[WZGrepHere.Reg.ntamd64]
+HKCR,%DIRSG%
+HKCR,%DIRSG%,,,%MENU%
+HKCR,%DIRSG%\command\,,,%01%\%CMD%
+HKCR,%DRVSG%
+HKCR,%DRVSG%,,,%MENU%
+HKCR,%DRVSG%\command\,,,%01%\%CMD%
+HKLM,%SMWCUG%
+HKLM,%SMWCUG%,DisplayName,,%TITLE% (削除のみ)
+HKLM,%SMWCUG%,DisplayIcon,,%01%"\WZEDITOR.EXE,2"
+HKLM,%SMWCUG%,UninstallString,,"RunDll32.exe syssetup.dll,SetupInfObjectInstallAction DefaultUninstall.ntamd64 132 %17%\WZGrepHere.INF"
+
+[Strings]
+DIRSG="DIRECTORY\shell\WZGrepHere"
+DRVSG="DRIVE\shell\WZGrepHere"
+MENU="WZ GREP(&G)"
+CMD="WZEDITOR.EXE /fGrep -f""%1\*.*"""
+SMWCUG="Software\Microsoft\Windows\CurrentVersion\Uninstall\WZGrepHere"
+TITLE="ExplorerからWZ GREP"
